@@ -1,0 +1,18 @@
+//This file is the express application itself, we configure middleware and mout routes here
+//This file doesn't start the server (server.js handles that - standard way (we separate both app.js and server.js so we avoid binding ports, which we will use if we write automated tests))
+
+import express from 'express';
+
+const app = express();
+
+// Built-in middleware: parses incoming JSON request bodies into req.body.
+// Without this, req.body would be undefined on every POST request.
+app.use(express.json());
+
+// A simple health-check to see if its working
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+
+export default app;
