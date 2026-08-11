@@ -4,6 +4,10 @@
 import express from 'express';
 import authRoutes from './routes/auth.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
+import categoryRoutes from './routes/category.routes.js';
+import productRoutes from './routes/product.routes.js';
+import checkoutRoutes from './routes/checkout.routes.js';
+
 const app = express();
 
 // Built-in middleware: parses incoming JSON request bodies into req.body.
@@ -17,5 +21,8 @@ app.get('/health', (req, res) => {
 
 app.use('/auth', authRoutes);           // -> POST /auth/login
 app.use('/employees', employeeRoutes);  // -> POST /employees
+app.use('/categories', categoryRoutes); // -> POST/GET /categories
+app.use('/products', productRoutes);    // -> POST /products, GET /products/:barcode
+app.use('/checkout', checkoutRoutes); // -> POST /checkout
 
 export default app;
