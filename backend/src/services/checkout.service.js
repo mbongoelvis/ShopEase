@@ -13,6 +13,7 @@
 // together, as if none of it ever happened.
 
 import pool from '../config/db.js';
+import { signReceipt } from '../utils/hmac.util.js';
 
 export async function processCheckout({ cashierId, storeId, items }) {
   // items looks like: [{ productId, qty }, { productId, qty }, ...]
@@ -76,8 +77,24 @@ export async function processCheckout({ cashierId, storeId, items }) {
       );
     }
 
+    // Generate the receipt + QR signature INSIDE the same transaction.
+    // If receipt creation somehow failed, we don't want a sale on record
+    // with no valid receipt to prove it — same all-or-nothing guarantee
+    // as the stock decrements above.
+    const signature = signReceipt(sale.sale_id);
+    const qrCode = `${sale.sale_id}.${signature}`; // the actual string encoded into the printed QR
+ 
+    const receiptResult = await client.query(
+      `INSERT INTO receipt (transaction_id, qr_code, status)
+       VALUES ($1, $2, 'PENDING')
+       RETURNING *`,
+      [sale.sale_id, qrCode]
+    );
+    const receipt = receiptResult.rows[0];
+
+
     await client.query('COMMIT'); // everything above is now permanently saved, together
-    return { sale, items: lineItems, total };
+    return { sale, items: lineItems, total, receipt };
 
   } catch (err) {
     await client.query('ROLLBACK'); // undo everything from BEGIN — as if none of it happened

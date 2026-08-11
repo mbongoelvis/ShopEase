@@ -7,6 +7,8 @@ import employeeRoutes from './routes/employee.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import checkoutRoutes from './routes/checkout.routes.js';
+import exitRoutes from './routes/exit.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 const app = express();
 
@@ -24,5 +26,7 @@ app.use('/employees', employeeRoutes);  // -> POST /employees
 app.use('/categories', categoryRoutes); // -> POST/GET /categories
 app.use('/products', productRoutes);    // -> POST /products, GET /products/:barcode
 app.use('/checkout', checkoutRoutes); // -> POST /checkout
+app.use('/exit', exitRoutes); // -> POST /exit
+app.use('/analytics', analyticsRoutes); // -> GET /analytics
 
 export default app;
