@@ -9,6 +9,8 @@ import productRoutes from './routes/product.routes.js';
 import checkoutRoutes from './routes/checkout.routes.js';
 import exitRoutes from './routes/exit.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
+import supplierRoutes from './routes/supplier.routes.js';
+import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
 
 const app = express();
 
@@ -28,5 +30,7 @@ app.use('/products', productRoutes);    // -> POST /products, GET /products/:bar
 app.use('/checkout', checkoutRoutes); // -> POST /checkout
 app.use('/exit', exitRoutes); // -> POST /exit
 app.use('/analytics', analyticsRoutes); // -> GET /analytics
+app.use('/suppliers', supplierRoutes); // -> POST /suppliers
+app.use('/purchase-orders', purchaseOrderRoutes); // -> /purchase-orders
 
 export default app;
