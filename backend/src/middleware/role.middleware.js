@@ -17,6 +17,13 @@ export function requireRole(...allowedRoles) {
     next();
   };
 }
+
+export function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.accountType !== 'SUPER_ADMIN') {
+    return res.status(403).json({ error: 'Forbidden platform admin access only' });
+  }
+  next();
+}
  
 export function requireOwnStore(req, res, next) {
   if (req.user.accountType === 'SUPER_ADMIN') return next();
@@ -26,3 +33,5 @@ export function requireOwnStore(req, res, next) {
   }
   next();
 }
+
+

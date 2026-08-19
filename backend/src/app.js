@@ -11,6 +11,8 @@ import exitRoutes from './routes/exit.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import supplierRoutes from './routes/supplier.routes.js';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import supportTicketRoutes from './routes/supportTicket.routes.js';
 
 const app = express();
 
@@ -32,5 +34,7 @@ app.use('/exit', exitRoutes); // -> POST /exit
 app.use('/analytics', analyticsRoutes); // -> GET /analytics
 app.use('/suppliers', supplierRoutes); // -> POST /suppliers
 app.use('/purchase-orders', purchaseOrderRoutes); // -> /purchase-orders
+app.use('/admin', adminRoutes); // -> POST /login
+app.use('/support-tickets', supportTicketRoutes); // -> POST /support-tickets
 
 export default app;
