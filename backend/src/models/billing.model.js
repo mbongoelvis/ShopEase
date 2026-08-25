@@ -1,4 +1,3 @@
-
 import pool from '../config/db.js';
 
 export async function getSubscriptionByStore(storeId) {
@@ -30,11 +29,12 @@ export async function listAllSubscriptionsWithBillingStatus() {
        s.plan_name,
        s.monthly_price,
        s.status,
+       s.preferred_payment_method,
        COUNT(i.id) FILTER (WHERE i.status = 'OVERDUE') AS overdue_invoice_count
      FROM subscription s
      JOIN store st ON s.store_id = st.store_id
      LEFT JOIN invoice i ON i.subscription_id = s.id
-     GROUP BY s.id, st.store_name
+     GROUP BY s.id, st.store_name, s.preferred_payment_method
      ORDER BY overdue_invoice_count DESC`
   );
   return result.rows;
@@ -44,16 +44,16 @@ export async function listAllSubscriptionsWithBillingStatus() {
 // tenant's only overdue invoice, the subscription itself should also
 // flip back to ACTIVE. Same "keep two related things in sync" reasoning
 // as the checkout/inventory pattern, so this runs as one transaction.
-export async function markInvoicePaid(invoiceId) {
+export async function markInvoicePaid(invoiceId, paymentMethod = 'PENDING') {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const invoiceResult = await client.query(
-      `UPDATE invoice SET status = 'PAID', paid_at = now()
+      `UPDATE invoice SET status = 'PAID', paid_at = now(), payment_method = $2
        WHERE id = $1 AND status = 'OVERDUE'
        RETURNING *`,
-      [invoiceId]
+      [invoiceId, paymentMethod]
     );
     const invoice = invoiceResult.rows[0];
     if (!invoice) {
@@ -80,4 +80,25 @@ export async function markInvoicePaid(invoiceId) {
   } finally {
     client.release();
   }
+}
+
+// Update subscription's preferred payment method
+export async function updatePreferredPaymentMethod(subscriptionId, paymentMethod) {
+  const result = await pool.query(
+    `UPDATE subscription SET preferred_payment_method = $2 WHERE id = $1 RETURNING *`,
+    [subscriptionId, paymentMethod]
+  );
+  return result.rows[0];
+}
+
+// Get all available payment methods
+export function getPaymentMethods() {
+  return [
+    { id: 'CREDIT_CARD', label: 'Credit Card', icon: '💳' },
+    { id: 'BANK_TRANSFER', label: 'Bank Transfer', icon: '🏦' },
+    { id: 'MOBILE_MONEY', label: 'Mobile Money', icon: '📱' },
+    { id: 'CASH', label: 'Cash', icon: '💵' },
+    { id: 'CHECK', label: 'Check', icon: '📋' },
+    { id: 'WIRE_TRANSFER', label: 'Wire Transfer', icon: '⚡' },
+  ];
 }

@@ -53,7 +53,8 @@ export default function TenantDashboard() {
   const { data: flagsData } = useApi('/analytics/security-flags');
 
   const totalRevenue = (revenueData?.revenue || []).reduce((sum, m) => sum + Number(m.revenue || 0), 0);
-  const lowStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock <= 5).length;
+  const lowStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock <= 5 && item.current_stock > 0).length;
+  const outOfStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock === 0).length;
   const discrepancyCount = (flagsData?.flags || []).reduce((sum, f) => sum + Number(f.discrepancy_count || 0), 0);
 
   // 1. ACTIVE TAB STATE
@@ -65,14 +66,23 @@ export default function TenantDashboard() {
   const { data: categories = [], loading: categoriesLoading, refetch: refetchCategories } = useApi('/categories');
 
   // Transform backend product shape to UI shape
-  const transformedProducts = (products || []).map((p) => ({
-    id: p.product_id,
-    name: p.name,
-    category: p.category_name,
-    variants: 1,
-    price: p.price,
-    stock: p.stock > 0 ? "In stock" : "Low stock",
-  }));
+  const transformedProducts = (products || []).map((p) => {
+    let stockStatus = "In stock";
+    if (p.stock === 0) {
+      stockStatus = "Out of stock";
+    } else if (p.stock > 0 && p.stock <= 5) {
+      stockStatus = "Low stock";
+    }
+    return {
+      id: p.product_id,
+      name: p.name,
+      category: p.category_name,
+      variants: 1,
+      price: p.price,
+      stock: stockStatus,
+      stockQuantity: p.stock,
+    };
+  });
 
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
@@ -461,10 +471,18 @@ export default function TenantDashboard() {
 
                 {/* LOW STOCK CARD */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-2 h-full bg-[#D35327]" />
-                  <span className="text-xs font-medium text-gray-500 block mb-1">Low-stock items</span>
-                  <span className="text-3xl font-extrabold text-[#F27042]">{lowStockCount}</span>
-                  <span className="text-[11px] text-gray-500 mt-2 block">Requires restocking</span>
+                  <div className="absolute top-0 right-0 w-2 h-full bg-amber-500" />
+                  <span className="text-xs font-medium text-gray-500 block mb-1">Low-stock items (1-5)</span>
+                  <span className="text-3xl font-extrabold text-amber-400">{lowStockCount}</span>
+                  <span className="text-[11px] text-gray-500 mt-2 block">Requires restocking soon</span>
+                </div>
+
+                {/* OUT OF STOCK CARD */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-2 h-full bg-red-500" />
+                  <span className="text-xs font-medium text-gray-500 block mb-1">Out of stock</span>
+                  <span className="text-3xl font-extrabold text-red-400">{outOfStockCount}</span>
+                  <span className="text-[11px] text-red-400 mt-2 block">Urgent restocking needed</span>
                 </div>
 
                 {/* DISCREPANCY CARD */}
@@ -762,15 +780,20 @@ export default function TenantDashboard() {
                           <td className="py-4 text-gray-500">{p.variants} SKUs</td>
                           <td className="py-4 font-semibold text-gray-900">${p.price}</td>
                           <td className="py-4 text-right">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                p.stock === "Low stock"
-                                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              }`}
-                            >
-                              {p.stock}
-                            </span>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-gray-600">{p.stockQuantity}</span>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                  p.stock === "Out of stock"
+                                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                    : p.stock === "Low stock"
+                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                }`}
+                              >
+                                {p.stock}
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       ))}

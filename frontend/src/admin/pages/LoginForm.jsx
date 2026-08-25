@@ -5,6 +5,7 @@ import logo from "../../assets/logo.jpeg";
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isForgotOpen, setIsForgotOpen] = useState(false);
@@ -104,14 +105,32 @@ export default function AdminLogin() {
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
               Password
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full text-sm px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/60 text-gray-900 placeholder-gray-400 transition"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full text-sm px-4 py-3 pr-10 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/60 text-gray-900 placeholder-gray-400 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-900 transition"
+              >
+                {showPassword ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.604-1.914A3.12 3.12 0 0115 12c0 .886-.312 1.7-.823 2.334m-8.36-9.337l11.314 11.314M21 12a9.981 9.981 0 01-8.775 9.748" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* SUBMIT BUTTON */}
@@ -124,12 +143,12 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        {/* FORGOT PASSWORD BUTTON */}
+        {/* FORGOT PASSWORD LINK */}
         <div className="text-center pt-1">
           <button
             type="button"
-            onClick={() => setIsForgotOpen(true)}
-            className="text-xs font-medium text-gray-500 hover:text-[#52B788] transition cursor-pointer"
+            onClick={() => navigate('/admin/reset-password')}
+            className="text-xs font-medium text-gray-500 hover:text-[#D35327] transition cursor-pointer"
           >
             Forgot password?
           </button>

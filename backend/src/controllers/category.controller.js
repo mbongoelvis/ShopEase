@@ -14,5 +14,5 @@ export async function addCategory(req, res) {
 
 export async function getCategories(req, res) {
   const categories = await listCategories();
-  res.json({ categories });
+  res.json(categories);
 }

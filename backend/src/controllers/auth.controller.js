@@ -40,6 +40,7 @@ export async function login(req, res) {
       id: user.user_id,
       name: user.user_name,
       role: user.role,
+      mustResetPassword: user.must_reset_password,
     },
   });
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -29,9 +30,23 @@ function useAdminApi(endpoint) {
 }
 
 export default function ShopEaseAdmin() {
+  const navigate = useNavigate();
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('tenants');
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantDetail, setTenantDetail] = useState(null);
+
+  // Get current admin from localStorage
+  const currentAdmin = (() => {
+    const adminJSON = localStorage.getItem('digisol_admin');
+    return adminJSON ? JSON.parse(adminJSON) : null;
+  })();
+
+  const handleLogout = () => {
+    localStorage.removeItem('digisol_admin_token');
+    localStorage.removeItem('digisol_admin');
+    navigate('/admin/login');
+  };
 
   // Real API data
   const { data: tenantsData, loading: tenantsLoading } = useAdminApi('/admin/tenants');
@@ -59,6 +74,10 @@ export default function ShopEaseAdmin() {
 
   const selectedBillingRecord = billingRecords.find(
     (record) => record.store_name === selectedBillingTenant
+  );
+
+  const selectedTenantData = tenants.find(
+    (tenant) => tenant.store_name === selectedBillingTenant
   );
 
   const handleSelectTenant = async (tenant) => {
@@ -113,8 +132,8 @@ export default function ShopEaseAdmin() {
   };
 
   const getMessagePreview = () => {
-    const tenantName = selectedBillingRecord?.store_name || 'the selected tenant';
-    const amount = selectedBillingRecord ? `$${selectedBillingRecord.monthly_price}` : '$0.00';
+    const tenantName = selectedTenantData?.store_name || 'the selected tenant';
+    const amount = selectedBillingRecord ? `${selectedBillingRecord.monthly_price} XAF` : 'invoice amount';
 
     switch (reminderTone) {
       case 'Firm':
@@ -201,6 +220,40 @@ export default function ShopEaseAdmin() {
               Support
             </button>
           </nav>
+        </div>
+
+        {/* ACCOUNT MENU - BOTTOM OF SIDEBAR */}
+        <div className="pt-6 border-t border-gray-200 relative">
+          <button
+            onClick={() => setIsAccountOpen(!isAccountOpen)}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-medium rounded-xl text-gray-600 hover:bg-gray-100/60 hover:text-gray-900 transition-all"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+              {currentAdmin?.email?.charAt(0).toUpperCase() || "A"}
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-xs font-semibold text-gray-900 truncate">{currentAdmin?.email || "Admin"}</p>
+              <p className="text-[10px] text-gray-500">Platform Admin</p>
+            </div>
+            <svg className={`w-4 h-4 transition-transform ${isAccountOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </button>
+
+          {/* ACCOUNT DROPDOWN */}
+          {isAccountOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1 z-50">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50/60 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -340,9 +393,9 @@ export default function ShopEaseAdmin() {
 
               {/* MRR Summary */}
               <div className="bg-white p-6 rounded-xl border border-gray-200 space-y-4">
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Monthly Recurring Revenue</p>
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Monthly Recurring Revenue (XAF)</p>
                 <p className="text-3xl font-bold text-gray-900">
-                  ${billingRecords.reduce((sum, r) => sum + Number(r.monthly_price || 0), 0).toLocaleString()}/mo
+                  {billingRecords.reduce((sum, r) => sum + Number(r.monthly_price || 0), 0).toLocaleString()} XAF/mo
                 </p>
                 <p className="text-xs text-gray-500">
                   Across {billingRecords.length} subscription{billingRecords.length !== 1 ? 's' : ''}
@@ -364,9 +417,9 @@ export default function ShopEaseAdmin() {
               {/* Stat Cards */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-white p-5 rounded-xl border border-gray-200 border-t-2 border-t-emerald-500">
-                  <p className="text-xs text-gray-500 font-medium">MRR</p>
+                  <p className="text-xs text-gray-500 font-medium">MRR (XAF)</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">
-                    ${billingRecords.reduce((sum, r) => sum + Number(r.monthly_price || 0), 0).toLocaleString()}
+                    {billingRecords.reduce((sum, r) => sum + Number(r.monthly_price || 0), 0).toLocaleString()} XAF
                   </p>
                 </div>
 
@@ -387,19 +440,23 @@ export default function ShopEaseAdmin() {
 
               {/* Billing Table */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 shadow-lg">
-                <div className="grid grid-cols-4 text-xs text-gray-500 font-semibold uppercase tracking-wider pb-3 border-b border-gray-200">
+                <div className="grid grid-cols-5 text-xs text-gray-500 font-semibold uppercase tracking-wider pb-3 border-b border-gray-200">
                   <span>Tenant</span>
                   <span>Plan</span>
                   <span>Amount</span>
+                  <span>Payment Method</span>
                   <span>Status</span>
                 </div>
 
                 <div className="divide-y divide-gray-800 text-sm">
                   {billingRecords.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-4 py-3.5 items-center">
+                    <div key={idx} className="grid grid-cols-5 py-3.5 items-center">
                       <span className="text-gray-900 font-medium">{item.store_name}</span>
                       <span className="text-gray-500">{item.plan_name}</span>
-                      <span className="text-gray-600">${item.monthly_price}/mo</span>
+                      <span className="text-gray-600">{item.monthly_price} XAF/mo</span>
+                      <span className="text-gray-500 text-xs">
+                        {item.preferred_payment_method ? item.preferred_payment_method.replace(/_/g, ' ') : 'Not set'}
+                      </span>
                       <span className={Number(item.overdue_invoice_count) > 0 ? 'text-[#f97316] font-medium' : 'text-emerald-400 font-medium'}>
                         {Number(item.overdue_invoice_count) > 0 ? `${item.overdue_invoice_count} overdue` : item.status}
                       </span>
@@ -541,24 +598,28 @@ export default function ShopEaseAdmin() {
                 onChange={(e) => setSelectedBillingTenant(e.target.value)}
                 className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-700 outline-none appearance-none cursor-pointer"
               >
-                <option value="" disabled className="bg-white">Select a company...</option>
-                {billingRecords.map((record) => (
-                  <option key={record.store_id} value={record.store_name} className="bg-white">
-                    {record.store_name}
-                  </option>
-                ))}
+                <option value="" disabled className="bg-white">{tenantsLoading ? 'Loading tenants...' : 'Select a company...'}</option>
+                {tenants.length > 0 ? (
+                  tenants.map((tenant) => (
+                    <option key={tenant.store_id} value={tenant.store_name} className="bg-white">
+                      {tenant.store_name}
+                    </option>
+                  ))
+                ) : (
+                  !tenantsLoading && <option disabled>No tenants available</option>
+                )}
               </select>
             </div>
 
             {/* Tenant Info Box */}
             <div className="bg-[#f97316]/10 p-3.5 rounded-xl border border-[#f97316]/30">
               <p className="text-xs font-semibold text-[#f97316]">
-                {selectedBillingRecord?.store_name || 'Select a company'}
+                {selectedTenantData?.store_name || 'Select a company'}
               </p>
               <p className="text-xs text-gray-600 mt-0.5">
                 {selectedBillingRecord
-                  ? `${selectedBillingRecord.plan_name} plan · $${selectedBillingRecord.monthly_price}/mo · ${selectedBillingRecord.status}`
-                  : 'Choose a company to view reminder details'}
+                  ? `${selectedBillingRecord.plan_name} plan · ${selectedBillingRecord.monthly_price} XAF/mo · ${selectedBillingRecord.status}`
+                  : selectedTenantData ? 'No active billing record' : 'Choose a company to view reminder details'}
               </p>
             </div>
 
@@ -568,7 +629,7 @@ export default function ShopEaseAdmin() {
               <input
                 type="text"
                 readOnly
-                value={selectedBillingRecord?.store_name || ''}
+                value={selectedTenantData?.store_name || ''}
                 placeholder="Select a company..."
                 className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-600 outline-none"
               />
@@ -611,19 +672,30 @@ export default function ShopEaseAdmin() {
                 Cancel
               </button>
               <button
-                disabled={!selectedBillingRecord}
+                disabled={!selectedTenantData}
                 onClick={async () => {
+                  if (!selectedTenantData) {
+                    alert('Please select a company');
+                    return;
+                  }
                   try {
                     const token = localStorage.getItem('digisol_admin_token');
-                    const res = await fetch(`${API_BASE}/admin/billing/${selectedBillingRecord.store_id}/send-reminder`, {
+                    const amount = selectedBillingRecord?.monthly_price || 'Amount pending';
+                    const res = await fetch(`${API_BASE}/admin/send-payment-reminder`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ tone: reminderTone }),
+                      body: JSON.stringify({
+                        storeId: selectedTenantData.store_id,
+                        tenantName: selectedTenantData.store_name,
+                        amount: amount,
+                        tone: reminderTone,
+                      }),
                     });
+                    const data = await res.json();
                     if (res.ok) {
-                      alert(`Payment reminder (${reminderTone}) sent to ${selectedBillingRecord.store_name}`);
+                      alert(`✅ Payment reminder email (${reminderTone}) sent successfully to ${selectedTenantData.store_name}`);
                     } else {
-                      alert('Failed to send reminder');
+                      alert(`Failed to send reminder: ${data.error}`);
                     }
                   } catch (err) {
                     alert(`Error: ${err.message}`);
@@ -632,7 +704,7 @@ export default function ShopEaseAdmin() {
                 }}
                 className="px-4 py-2 bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer"
               >
-                Send reminder
+                Send email reminder
               </button>
             </div>
           </div>

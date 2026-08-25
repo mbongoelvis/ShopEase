@@ -1,6 +1,6 @@
 
 import { createProductWithVariants } from '../services/product.service.js';
-import { findProductByBarcode, listVariantsByParent } from '../models/product.model.js';
+import { findProductByBarcode, listVariantsByParent, listProductsByStore, deleteProduct } from '../models/product.model.js';
 import { createInventoryRecord } from '../models/inventory.model.js';
 
 // POST /products — creates a product, optionally with size/color variants.
@@ -37,6 +37,39 @@ export async function addProduct(req, res) {
     // e.g. category not found, or duplicate barcode — surface a clean 400,
     // not a raw 500 with a stack trace leaking to the client.
     res.status(400).json({ error: err.message });
+  }
+}
+
+// GET /products — lists all products for the tenant's store
+export async function listProducts(req, res) {
+  try {
+    const products = await listProductsByStore(req.user.storeId);
+    res.json(products);
+  } catch (err) {
+    console.error('Error listing products:', err);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+}
+
+// DELETE /products/:id — deletes a product and its variants from the database
+export async function removeProduct(req, res) {
+  try {
+    const productId = req.params.id;
+
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    const deleted = await deleteProduct(productId);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json({ message: 'Product deleted successfully', product: deleted });
+  } catch (err) {
+    console.error('Error deleting product:', err.message, err);
+    res.status(500).json({ error: err.message || 'Failed to delete product' });
   }
 }
 
