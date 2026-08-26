@@ -41,6 +41,21 @@ export async function listVariantsByParent(parentId) {
 
 // Lists all products for the tenant's store with category names and stock info
 export async function listProductsByStore(storeId) {
+  // First, ensure all parent products have inventory records for this store
+  await pool.query(
+    `INSERT INTO inventory (product_id, store_id, quantity)
+     SELECT DISTINCT p.product_id, $1, 0
+     FROM product p
+     WHERE p.parent_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM inventory i
+         WHERE i.product_id = p.product_id
+         AND i.store_id = $1
+       )
+     ON CONFLICT DO NOTHING`,
+    [storeId]
+  );
+
   const result = await pool.query(
     `SELECT
        p.product_id,

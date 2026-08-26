@@ -441,6 +441,40 @@ export default function TenantDashboard() {
               );
             })}
           </nav>
+        
+          {/* ACCOUNT MENU - BOTTOM OF SIDEBAR */}
+          <div className="mt-auto pt-6 border-t border-gray-200 relative">
+            <button
+              onClick={() => setIsAccountOpen(!isAccountOpen)}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-medium rounded-xl text-gray-600 hover:bg-gray-100/60 hover:text-gray-900 transition-all"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                {currentUser?.name?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-semibold text-gray-900 truncate">{currentUser?.name || "User"}</p>
+                <p className="text-[10px] text-gray-500">{userRoleDisplay}</p>
+              </div>
+              <svg className={`w-4 h-4 transition-transform ${isAccountOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+
+            {/* ACCOUNT DROPDOWN */}
+            {isAccountOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1 z-50">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50/60 rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* MAIN CONTENT AREA */}

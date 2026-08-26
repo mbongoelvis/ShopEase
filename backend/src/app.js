@@ -15,6 +15,7 @@ import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import supportTicketRoutes from './routes/supportTicket.routes.js';
 import billingRoutes from './routes/billing.routes.js';
+import branchRoutes from './routes/branch.routes.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/analytics', analyticsRoutes); // -> GET /analytics
 app.use('/suppliers', supplierRoutes); // -> POST /suppliers
 app.use('/purchase-orders', purchaseOrderRoutes); // -> /purchase-orders
 app.use('/admin', adminRoutes); // -> POST /login
+app.use('/branches', branchRoutes); // -> GET/POST /branches
 app.use('/support-tickets', supportTicketRoutes); // -> POST /support-tickets
 app.use('/billing', billingRoutes); // -> GET /billing/me
 
