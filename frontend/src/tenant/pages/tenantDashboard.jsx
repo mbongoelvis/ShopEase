@@ -1,5 +1,26 @@
 import React, { useState, useRef } from "react";
 import { useApi } from "../../Hooks/useApi";
+import {useNavigate} from "react-router-dom";
+
+
+const ROLE_DISPLAY_MAP = {
+  OWNER: "Owner",
+  CASHIER: "Cashier",
+  SECURITY_GUARD: "Security Guard",
+  STOCKER: "Stocker",
+  INVENTORY_MONITOR: "Inventory Monitor",
+};
+
+
+
+// Menu items with role-based visibility
+const MENU_ITEMS = [
+  { id: "analytics", label: "Analytics", icon: "📊", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
+  { id: "employees", label: "Employees", icon: "👥", allowedRoles: ["OWNER"] },
+  { id: "branches", label: "Branches", icon: "🏪", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
+  { id: "products", label: "Products", icon: "📦", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
+  { id: "billing", label: "Billing", icon: "💳", allowedRoles: ["OWNER"] },
+];
 
 // Helper: Get current user from localStorage (set during login)
 const getCurrentUser = () => {
@@ -34,18 +55,24 @@ const createEmployee = async (data) => {
   return response.json();
 };
 
-const ROLE_DISPLAY_MAP = {
-  OWNER: "Owner",
-  CASHIER: "Cashier",
-  SECURITY_GUARD: "Security Guard",
-  STOCKER: "Stocker",
-  INVENTORY_MONITOR: "Inventory Monitor",
-};
+
 
 export default function TenantDashboard() {
+  const navigate = useNavigate();
   const currentUser = getCurrentUser();
-  // Real role now comes from the logged-in user's token, not a manual toggle.
-  const [userRole] = useState(ROLE_DISPLAY_MAP[currentUser?.role] || "Owner");
+  // Use actual role from JWT token (OWNER, INVENTORY_MONITOR, CASHIER, etc.)
+  const userRole = currentUser?.role || "OWNER";
+  const userRoleDisplay = ROLE_DISPLAY_MAP[userRole] || "User";
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+
+  // Filter menu items based on user's actual role from token
+  const visibleMenuItems = MENU_ITEMS.filter(item => item.allowedRoles.includes(userRole));
+
+  const handleLogout = () => {
+    localStorage.removeItem("digisol_token");
+    localStorage.removeItem("digisol_user");
+    navigate("/login");
+  };
 
   // ANALYTICS DATA (real API)
   const { data: revenueData } = useApi('/analytics/revenue');
@@ -155,7 +182,7 @@ export default function TenantDashboard() {
     { id: "billing", label: "Billing", icon: "💳", roles: ["Owner"] },
   ];
 
-  const visibleMenuItems = allMenuItems.filter((item) => item.roles.includes(userRole));
+
 
   // Switch tabs safely when changing role
   const handleRoleChange = (role) => {
@@ -485,7 +512,7 @@ export default function TenantDashboard() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Analytics Overview</h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  {userRole === "Owner"
+                  {userRole === "OWNER"
                     ? "Real-time stats across all store branches."
                     : "Inventory & discrepancy overview (no revenue data)."}
                 </p>
@@ -494,7 +521,7 @@ export default function TenantDashboard() {
               {/* STATS CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {/* REVENUE CARD - OWNER ONLY */}
-                {userRole === "Owner" && (
+                {userRole === "OWNER" && (
                   <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-2 h-full bg-[#2D6A4F]" />
                     <span className="text-xs font-medium text-gray-500 block mb-1">Revenue (30d)</span>
@@ -529,7 +556,7 @@ export default function TenantDashboard() {
               </div>
 
               {/* REVENUE CHART CARD - OWNER ONLY */}
-              {userRole === "Owner" && (revenueData?.revenue || []).length > 0 && (
+              {userRole === "OWNER" && (revenueData?.revenue || []).length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-4">
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monthly Revenue</h3>
 
@@ -599,7 +626,7 @@ export default function TenantDashboard() {
           )}
 
           {/* EMPLOYEES TAB (OWNER ONLY) */}
-          {activeTab === "employees" && userRole === "Owner" && (
+          {activeTab === "employees" && userRole === "OWNER" && (
             <div className="max-w-5xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -665,14 +692,14 @@ export default function TenantDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Store Branches</h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    {userRole === "Owner"
+                    {userRole === "OWNER"
                       ? "Monitor operational status across locations."
                       : "View branch stock health status (View only)."}
                   </p>
                 </div>
 
                 {/* NO ADD BRANCH FOR INVENTORY MONITOR */}
-                {userRole === "Owner" && (
+                {userRole === "OWNER" && (
                   <button
                     onClick={() => setIsAddBranchOpen(true)}
                     className="px-4 py-2.5 text-xs font-semibold text-white bg-[#D35327] hover:bg-[#B8421B] rounded-xl transition shadow-md shadow-[#D35327]/30 flex items-center gap-1.5"
@@ -736,14 +763,14 @@ export default function TenantDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Product Catalog</h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    {userRole === "Owner"
+                    {userRole === "OWNER"
                       ? "Manage inventory, categories, and SKU variants."
                       : "View stock levels and inventory status (No product creation or pricing edits)."}
                   </p>
                 </div>
 
                 {/* NO NEW PRODUCT OR BULK UPLOAD FOR INVENTORY MONITOR */}
-                {userRole === "Owner" && (
+                {userRole === "OWNER" && (
                   <div className="flex items-center gap-2.5">
                     <button
                       onClick={() => setIsAddCategoryOpen(true)}
@@ -839,7 +866,7 @@ export default function TenantDashboard() {
           )}
 
           {/* BILLING TAB (OWNER ONLY) */}
-          {activeTab === "billing" && userRole === "Owner" && (
+          {activeTab === "billing" && userRole === "OWNER" && (
             <div className="max-w-5xl mx-auto space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Subscription & Billing</h2>
@@ -914,7 +941,7 @@ export default function TenantDashboard() {
 
 
       {/* MODAL: ADD CATEGORY */}
-      {isAddCategoryOpen && userRole === "Owner" && (
+      {isAddCategoryOpen && userRole === "OWNER" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 space-y-5">
             <div className="flex justify-between items-center">
@@ -990,7 +1017,7 @@ export default function TenantDashboard() {
       )}
 
       {/* MODAL: BULK UPLOAD */}
-      {isBulkUploadOpen && userRole === "Owner" && (
+      {isBulkUploadOpen && userRole === "OWNER" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg p-6 md:p-8 space-y-6 my-8">
             <div className="flex justify-between items-center">
@@ -1071,7 +1098,7 @@ export default function TenantDashboard() {
       )}
 
       {/* MODAL: ADD BRANCH */}
-      {isAddBranchOpen && userRole === "Owner" && (
+      {isAddBranchOpen && userRole === "OWNER" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 space-y-5">
             <div className="flex justify-between items-center">
@@ -1126,7 +1153,7 @@ export default function TenantDashboard() {
       )}
 
       {/* MODAL: ADD EMPLOYEE */}
-      {isAddEmployeeOpen && userRole === "Owner" && (
+      {isAddEmployeeOpen && userRole === "OWNER" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 space-y-5">
             <div className="flex justify-between items-center">
@@ -1213,7 +1240,7 @@ export default function TenantDashboard() {
       )}
 
       {/* MODAL: NEW PRODUCT */}
-      {isNewProductOpen && userRole === "Owner" && (
+      {isNewProductOpen && userRole === "OWNER" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg p-6 md:p-8 space-y-6 my-8">
             <div className="flex justify-between items-center">
