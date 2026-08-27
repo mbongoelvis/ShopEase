@@ -1600,7 +1600,7 @@ export default function TenantDashboard() {
       {/* AUDIT LOGS TAB (OWNER ONLY) */}
       {activeTab === "audit-logs" && userRole === "OWNER" && (
         <div className="max-w-5xl mx-auto space-y-6">
-          <div>
+          <div className="pt-0 -mt-160">
             <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Audit Logs</h2>
             <p className="text-xs text-gray-500 mt-1">Track all system activities and changes made by your team</p>
           </div>
@@ -1614,24 +1614,24 @@ export default function TenantDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[800px]">
                   <thead>
-                    <tr className="text-gray-400 font-medium border-b border-gray-200 pb-3">
-                      <th className="pb-3 px-4 font-semibold">Timestamp</th>
-                      <th className="pb-3 px-4 font-semibold">User</th>
-                      <th className="pb-3 px-4 font-semibold">Action</th>
-                      <th className="pb-3 px-4 font-semibold">Entity Type</th>
-                      <th className="pb-3 px-4 font-semibold">Entity Name</th>
-                      <th className="pb-3 px-4 font-semibold">Status</th>
+                    <tr className="text-gray-400 font-medium border-b border-gray-200">
+                      <th className="py-2 px-3 font-semibold">Timestamp</th>
+                      <th className="py-2 px-3 font-semibold">User</th>
+                      <th className="py-2 px-3 font-semibold">Action</th>
+                      <th className="py-2 px-3 font-semibold">Entity Type</th>
+                      <th className="py-2 px-3 font-semibold">Entity Name</th>
+                      <th className="py-2 px-3 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 text-gray-600">
                     {(auditLogs?.logs || []).map((log) => (
                       <tr key={log.audit_id} className="hover:bg-gray-100/40 transition-colors">
-                        <td className="py-3 px-4 text-xs text-gray-500">
+                        <td className="py-2 px-3 text-xs text-gray-500">
                           {new Date(log.created_at).toLocaleString()}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-gray-900">{log.user_name || "System"}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                        <td className="py-2 px-3 font-semibold text-gray-900 text-xs">{log.user_name || "System"}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap ${
                             log.action === "DELETE" ? "bg-red-500/20 text-red-500 border border-red-500/30" :
                             log.action === "CREATE" ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" :
                             log.action === "PASSWORD_RESET" ? "bg-blue-500/20 text-blue-500 border border-blue-500/30" :
@@ -1640,10 +1640,10 @@ export default function TenantDashboard() {
                             {log.action}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-gray-500">{log.entity_type}</td>
-                        <td className="py-3 px-4 font-semibold text-gray-900">{log.entity_name}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                        <td className="py-2 px-3 text-xs text-gray-500">{log.entity_type}</td>
+                        <td className="py-2 px-3 text-xs font-semibold text-gray-900">{log.entity_name}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap ${
                             log.status === "SUCCESS"
                               ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
                               : "bg-red-500/20 text-red-500 border border-red-500/30"
