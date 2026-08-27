@@ -16,6 +16,7 @@ import adminRoutes from './routes/admin.routes.js';
 import supportTicketRoutes from './routes/supportTicket.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import branchRoutes from './routes/branch.routes.js';
+import auditLogRoutes from './routes/auditLog.routes.js';
 
 const app = express();
 
@@ -43,5 +44,6 @@ app.use('/admin', adminRoutes); // -> POST /login
 app.use('/branches', branchRoutes); // -> GET/POST /branches
 app.use('/support-tickets', supportTicketRoutes); // -> POST /support-tickets
 app.use('/billing', billingRoutes); // -> GET /billing/me
+app.use('/audit-logs', auditLogRoutes); // -> GET /audit-logs
 
 export default app;

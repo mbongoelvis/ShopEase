@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useApi } from "../../Hooks/useApi";
 import {useNavigate} from "react-router-dom";
 
@@ -20,6 +20,7 @@ const MENU_ITEMS = [
   { id: "branches", label: "Branches", icon: "🏪", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
   { id: "products", label: "Products", icon: "📦", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
   { id: "billing", label: "Billing", icon: "💳", allowedRoles: ["OWNER"] },
+  { id: "audit-logs", label: "Audit Logs", icon: "📋", allowedRoles: ["OWNER"] },
 ];
 
 // Helper: Get current user from localStorage (set during login)
@@ -87,7 +88,13 @@ export default function TenantDashboard() {
   // 1. ACTIVE TAB STATE
   const [activeTab, setActiveTab] = useState("analytics");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [productSearchTerm, setProductSearchTerm] = useState("");
 
+  const [empSearchTerm, setEmpSearchTerm] = useState("");
+  const [empStatusFilter, setEmpStatusFilter] = useState("All Status");
+  const [empRoleFilter, setEmpRoleFilter] = useState("All Roles");
+  const [openMenuEmpId, setOpenMenuEmpId] = useState(null);
+  const [openMenuProductId, setOpenMenuProductId] = useState(null);
   // 2. PRODUCT STATE & MODAL HANDLERS
   const { data: products = [], loading: productsLoading, refetch: refetchProducts } = useApi('/products');
   const { data: categories = [], loading: categoriesLoading, refetch: refetchCategories } = useApi('/categories');
@@ -95,9 +102,10 @@ export default function TenantDashboard() {
   // Transform backend product shape to UI shape
   const transformedProducts = (products || []).map((p) => {
     let stockStatus = "In stock";
+    const threshold = 5;
     if (p.stock === 0) {
       stockStatus = "Out of stock";
-    } else if (p.stock > 0 && p.stock <= 5) {
+    } else if (p.stock > 0 && p.stock <= threshold) {
       stockStatus = "Low stock";
     }
     return {
@@ -108,17 +116,24 @@ export default function TenantDashboard() {
       price: p.price,
       stock: stockStatus,
       stockQuantity: p.stock,
+      threshold: threshold,
+      supplier: p.supplier_name || "---",
     };
   });
 
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isUpdateStockOpen, setIsUpdateStockOpen] = useState(false);
+  const [selectedProductForStock, setSelectedProductForStock] = useState(null);
+  const [stockQuantity, setStockQuantity] = useState("");
+  const [stockAction, setStockAction] = useState("add");
 
   // New Product Form State
   const [barcodeInput, setBarcodeInput] = useState("");
   const [newProductName, setNewProductName] = useState("");
   const [newProductCategory, setNewProductCategory] = useState("");
+  const [newProductSupplier, setNewProductSupplier] = useState("");
   const [selectedSizes, setSelectedSizes] = useState(["S", "M", "L"]);
   const [selectedColors, setSelectedColors] = useState(["Red", "Blue"]);
   const categoryOptions = Array.isArray(categories) ? categories : categories?.categories || [];
@@ -160,10 +175,8 @@ export default function TenantDashboard() {
 
   // 4. BRANCHES STATE & MODAL HANDLERS
   const [branches, setBranches] = useState([
-    { id: 1, name: "Main store, Lekki", employeesCount: 8, openedYear: 2023, stockHealth: "Good", isSettingUp: false },
-    { id: 2, name: "Ikeja branch", employeesCount: 6, openedYear: 2024, stockHealth: "3 low-stock", isSettingUp: false },
-    { id: 3, name: "Yaba branch", employeesCount: 5, openedYear: 2024, stockHealth: "Good", isSettingUp: false },
-    { id: 4, name: "Surulere - setting up", employeesCount: 0, openedYear: 2026, stockHealth: "", isSettingUp: true },
+    { id: 1, name: "Main store, Molyko", employeesCount: 8, openedYear: 2023, stockHealth: "Good", isSettingUp: false },
+    { id: 4, name: "Buea Town - setting up", employeesCount: 0, openedYear: 2026, stockHealth: "", isSettingUp: true },
   ]);
 
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
@@ -172,6 +185,23 @@ export default function TenantDashboard() {
 
   // 5. BILLING STATE (real API)
   const { data: billingData } = useApi('/billing/me');
+
+  // 6. AUDIT LOGS STATE (real API, Owner only)
+  const { data: auditLogs = [], loading: auditLogsLoading, refetch: refetchAuditLogs } = useApi(userRole === "OWNER" ? '/audit-logs' : null);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (openMenuEmpId && !e.target.closest('[data-menu-container]')) {
+        setOpenMenuEmpId(null);
+      }
+      if (openMenuProductId && !e.target.closest('[data-product-menu]')) {
+        setOpenMenuProductId(null);
+      }
+    };
+    if (openMenuEmpId || openMenuProductId) document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openMenuEmpId, openMenuProductId]);
 
   // NAVIGATION ITEMS FILTERED BASED ON ROLE CONSTRAINTS
   const allMenuItems = [
@@ -218,6 +248,7 @@ export default function TenantDashboard() {
             barcode: barcodeInput,
             sizes: selectedSizes,
             colors: selectedColors,
+            supplierName: newProductSupplier,
           }),
         }
       );
@@ -233,6 +264,7 @@ export default function TenantDashboard() {
       setIsNewProductOpen(false);
       setNewProductName("");
       setNewProductCategory("");
+      setNewProductSupplier("");
       setSelectedSizes(["S", "M", "L"]);
       setSelectedColors(["Red", "Blue"]);
       setCustomSize("");
@@ -424,10 +456,6 @@ export default function TenantDashboard() {
     setBranchAddress("");
   };
 
-  const handleResetPin = (empName) => {
-    alert(`PIN reset instructions sent for ${empName}`);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-between">
       <div className="flex flex-1 flex-col md:flex-row">
@@ -525,7 +553,7 @@ export default function TenantDashboard() {
                   <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-2 h-full bg-[#2D6A4F]" />
                     <span className="text-xs font-medium text-gray-500 block mb-1">Revenue (30d)</span>
-                    <span className="text-3xl font-extrabold text-gray-900">${totalRevenue.toLocaleString()}</span>
+                    <span className="text-3xl font-extrabold text-gray-900">{totalRevenue.toLocaleString()} XAF</span>
                     <span className="text-[11px] text-[#52B788] font-semibold mt-2 block">All-time from sales</span>
                   </div>
                 )}
@@ -600,7 +628,7 @@ export default function TenantDashboard() {
                       <th className="py-2.5 font-semibold text-right">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 text-gray-600">
+                  <tbody className="divide-y divide-gray-200 text-gray-600">
                     {(flagsData?.flags || []).length === 0 ? (
                       <tr>
                         <td colSpan="4" className="py-6 text-center text-gray-400">No discrepancy flags recorded.</td>
@@ -630,10 +658,9 @@ export default function TenantDashboard() {
             <div className="max-w-5xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Team Members</h2>
-                  <p className="text-xs text-gray-500 mt-1">Manage personnel roles and branch assignments.</p>
+                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Employees</h2>
+                  <p className="text-xs text-gray-500 mt-1">Manage your team members and their access</p>
                 </div>
-
                 <button
                   onClick={() => setIsAddEmployeeOpen(true)}
                   className="px-4 py-2.5 text-xs font-semibold text-white bg-[#D35327] hover:bg-[#B8421B] rounded-xl transition shadow-md shadow-[#D35327]/30 flex items-center gap-1.5"
@@ -642,45 +669,153 @@ export default function TenantDashboard() {
                 </button>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[550px]">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-400 font-medium">
-                      <th className="py-3 px-2 font-semibold">Name</th>
-                      <th className="py-3 px-2 font-semibold">Role</th>
-                      <th className="py-3 px-2 font-semibold">Branch</th>
-                      <th className="py-3 px-2 font-semibold text-right">PIN</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-gray-600">
-                    {employees.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-gray-100/40 transition-colors">
-                        <td className="py-3.5 px-2">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-xs">
-                              {emp.initials}
-                            </div>
-                            <span className="font-semibold text-gray-900">{emp.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-2">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-300">
-                            {emp.role}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-2 text-gray-500">{emp.branch}</td>
-                        <td className="py-3.5 px-2 text-right">
-                          <button
-                            onClick={() => handleResetPin(emp.name)}
-                            className="text-[#52B788] hover:text-[#74c69d] font-semibold hover:underline"
-                          >
-                            Reset
-                          </button>
-                        </td>
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-6">
+                {/* SEARCH & FILTERS */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={empSearchTerm}
+                      onChange={(e) => setEmpSearchTerm(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50"
+                    />
+                  </div>
+                  <select
+                    value={empStatusFilter}
+                    onChange={(e) => setEmpStatusFilter(e.target.value)}
+                    className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 cursor-pointer"
+                  >
+                    <option>All Status</option>
+                    <option>Active</option>
+                  </select>
+                  <select
+                    value={empRoleFilter}
+                    onChange={(e) => setEmpRoleFilter(e.target.value)}
+                    className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 cursor-pointer"
+                  >
+                    <option>All Roles</option>
+                    <option>CASHIER</option>
+                    <option>STOCKER</option>
+                    <option>INVENTORY_MONITOR</option>
+                    <option>SECURITY_GUARD</option>
+                  </select>
+                </div>
+
+                {/* TABLE */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs min-w-[500px]">
+                    <thead>
+                      <tr className="text-gray-400 font-medium border-b border-gray-200 pb-3">
+                        <th className="pb-3 px-4 font-semibold">Employee</th>
+                        <th className="pb-3 px-4 font-semibold">Role</th>
+                        <th className="pb-3 px-4 font-semibold">Status</th>
+                        <th className="pb-3 px-4 font-semibold text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 text-gray-600">
+                      {rawEmployees.filter((emp) => {
+                        const matchesSearch = !empSearchTerm || emp.user_name?.toLowerCase().includes(empSearchTerm.toLowerCase()) || emp.email?.toLowerCase().includes(empSearchTerm.toLowerCase());
+                        const matchesStatus = empStatusFilter === "All Status" || empStatusFilter === "Active";
+                        const matchesRole = empRoleFilter === "All Roles" || emp.role === empRoleFilter;
+                        return matchesSearch && matchesStatus && matchesRole;
+                      }).map((emp) => (
+                        <tr key={emp.user_id} className="hover:bg-gray-100/40 transition-colors">
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center shrink-0">
+                                {emp.user_name?.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="block font-semibold text-gray-900 text-sm">{emp.user_name}</span>
+                                <span className="block text-xs text-gray-500">{emp.email}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-300">
+                              {emp.role}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="text-emerald-500 font-semibold text-sm">Active</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="relative inline-block" data-menu-container>
+                              <button
+                                onClick={() => setOpenMenuEmpId(openMenuEmpId === emp.user_id ? null : emp.user_id)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded transition"
+                                title="More options"
+                              >
+                                ⋮
+                              </button>
+                              {openMenuEmpId === emp.user_id && (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const token = localStorage.getItem('digisol_token');
+                                        const res = await fetch(
+                                          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/employees/${emp.user_id}/reset-password`,
+                                          {
+                                            method: 'PATCH',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                              Authorization: `Bearer ${token}`,
+                                            },
+                                          }
+                                        );
+                                        const data = await res.json();
+                                        if (res.ok) {
+                                          alert(`✅ Password reset for ${emp.user_name}\nTemporary password: ${data.temporaryPassword}\nEmail: ${data.email}`);
+                                          setOpenMenuEmpId(null);
+                                        } else {
+                                          alert(`Failed: ${data.error}`);
+                                        }
+                                      } catch (err) {
+                                        alert(`Error: ${err.message}`);
+                                      }
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-100 text-gray-900 transition"
+                                  >
+                                    <span>✏️</span> Edit
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Delete ${emp.user_name}? This cannot be undone.`)) return;
+                                      try {
+                                        const token = localStorage.getItem('digisol_token');
+                                        const res = await fetch(
+                                          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/employees/${emp.user_id}`,
+                                          {
+                                            method: 'DELETE',
+                                            headers: { Authorization: `Bearer ${token}` },
+                                          }
+                                        );
+                                        const data = await res.json();
+                                        if (res.ok) {
+                                          alert(`✅ ${emp.user_name} deleted successfully`);
+                                          setOpenMenuEmpId(null);
+                                        } else {
+                                          alert(`Failed: ${data.error}`);
+                                        }
+                                      } catch (err) {
+                                        alert(`Error: ${err.message}`);
+                                      }
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-red-50 text-red-500 transition border-t border-gray-200"
+                                  >
+                                    <span>🗑️</span> Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -795,6 +930,17 @@ export default function TenantDashboard() {
               </div>
 
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-6">
+                {/* SEARCH */}
+                <div className="flex-1 relative mb-4">
+                  <input
+                    type="text"
+                    placeholder="Search products by name..."
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50"
+                  />
+                </div>
+
                 {/* CATEGORY FILTERS */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {["All", ...categoryOptions.map((category) => category.name)].map((cat) => {
@@ -817,43 +963,101 @@ export default function TenantDashboard() {
 
                 {/* TABLE */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs min-w-[500px]">
+                  <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                     <thead>
                       <tr className="text-gray-400 font-medium border-b border-gray-200 pb-3">
-                        <th className="pb-3 font-semibold">Product</th>
-                        <th className="pb-3 font-semibold">Category</th>
-                        <th className="pb-3 font-semibold">Variants</th>
-                        <th className="pb-3 font-semibold">Price</th>
-                        <th className="pb-3 font-semibold text-right">Stock</th>
+                        <th className="pb-3 px-4 font-semibold">Product</th>
+                        <th className="pb-3 px-4 font-semibold">Supplier</th>
+                        <th className="pb-3 px-4 font-semibold">Available</th>
+                        <th className="pb-3 px-4 font-semibold">Unit Price</th>
+                        <th className="pb-3 px-4 font-semibold">Status</th>
+                        <th className="pb-3 px-4 font-semibold text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800 text-gray-600">
-                      {(transformedProducts || []).filter((p) =>
-                        activeCategory === "All" || p.category === activeCategory
-                      ).map((p) => (
+                    <tbody className="divide-y divide-gray-200 text-gray-600">
+                      {(transformedProducts || []).filter((p) => {
+                        const matchesCategory = activeCategory === "All" || p.category === activeCategory;
+                        const matchesSearch = !productSearchTerm || p.name.toLowerCase().includes(productSearchTerm.toLowerCase()) || p.category.toLowerCase().includes(productSearchTerm.toLowerCase());
+                        return matchesCategory && matchesSearch;
+                      }).map((p) => (
                         <tr key={p.id} className="hover:bg-gray-100/40 transition-colors">
-                          <td className="py-4 font-semibold text-gray-900">{p.name}</td>
-                          <td className="py-4">
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-300">
-                              {p.category}
+                          <td className="py-4 px-4">
+                            <div>
+                              <span className="block font-semibold text-gray-900">{p.name}</span>
+                              <span className="block text-xs text-gray-500">{p.category}</span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 text-gray-600">{p.supplier}</td>
+                          <td className="py-4 px-4">
+                            <span className="font-semibold text-gray-900">{p.stockQuantity} / {p.threshold}</span>
+                          </td>
+                          <td className="py-4 px-4 font-semibold text-gray-900">{Number(p.price || 0).toLocaleString()} XAF</td>
+                          <td className="py-4 px-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                p.stock === "Out of stock"
+                                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                  : p.stock === "Low stock"
+                                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              }`}
+                            >
+                              {p.stock}
                             </span>
                           </td>
-                          <td className="py-4 text-gray-500">{p.variants} SKUs</td>
-                          <td className="py-4 font-semibold text-gray-900">${p.price}</td>
-                          <td className="py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="text-gray-600">{p.stockQuantity}</span>
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                  p.stock === "Out of stock"
-                                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                                    : p.stock === "Low stock"
-                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                }`}
+                          <td className="py-4 px-4 text-right">
+                            <div className="relative inline-block" data-product-menu>
+                              <button
+                                onClick={() => setOpenMenuProductId(openMenuProductId === p.id ? null : p.id)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded transition"
+                                title="More options"
                               >
-                                {p.stock}
-                              </span>
+                                ⋮
+                              </button>
+                              {openMenuProductId === p.id && (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedProductForStock(p);
+                                      setStockQuantity("");
+                                      setStockAction("add");
+                                      setIsUpdateStockOpen(true);
+                                      setOpenMenuProductId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-blue-50 text-blue-600 transition"
+                                  >
+                                    <span>📦</span> Update Stock
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Delete ${p.name}? This cannot be undone.`)) return;
+                                      try {
+                                        const token = localStorage.getItem('digisol_token');
+                                        const res = await fetch(
+                                          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/products/${p.id}`,
+                                          {
+                                            method: 'DELETE',
+                                            headers: { Authorization: `Bearer ${token}` },
+                                          }
+                                        );
+                                        const data = await res.json();
+                                        if (res.ok) {
+                                          alert(`✅ ${p.name} deleted successfully`);
+                                          setOpenMenuProductId(null);
+                                          refetchProducts();
+                                        } else {
+                                          alert(`Failed: ${data.error}`);
+                                        }
+                                      } catch (err) {
+                                        alert(`Error: ${err.message}`);
+                                      }
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-red-50 text-red-500 transition border-t border-gray-200"
+                                  >
+                                    <span>🗑️</span> Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -882,7 +1086,7 @@ export default function TenantDashboard() {
                       {billingData?.subscription?.plan_name || "No plan"}
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      ${billingData?.subscription?.monthly_price || "0"}/month · Status: {billingData?.subscription?.status || "N/A"}
+                      {Number(billingData?.subscription?.monthly_price || 0).toLocaleString()} XAF/month · Status: {billingData?.subscription?.status || "N/A"}
                     </p>
                   </div>
                   <button
@@ -906,7 +1110,7 @@ export default function TenantDashboard() {
                           <th className="pb-3 font-semibold text-right">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800 text-gray-600">
+                      <tbody className="divide-y divide-gray-200 text-gray-600">
                         {(billingData?.invoices || []).length === 0 ? (
                           <tr>
                             <td colSpan="4" className="py-6 text-center text-gray-400">No invoices yet.</td>
@@ -1165,7 +1369,7 @@ export default function TenantDashboard() {
 
             <form onSubmit={handleAddEmployee} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Full nam</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Full name</label>
                 <input
                   type="text"
                   required
@@ -1296,6 +1500,18 @@ export default function TenantDashboard() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier</label>
+                <input
+                  type="text"
+                  value={newProductSupplier}
+                  onChange={(e) => setNewProductSupplier(e.target.value)}
+                  placeholder="e.g. Fabio Imports, Local Distributor"
+                  className="w-full text-xs px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 text-gray-900"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Leave empty if no supplier, or enter supplier name</p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-3">Sizes</label>
                 <div className="flex gap-2 flex-wrap">
                   {availableSizes.map((size) => (
@@ -1377,6 +1593,171 @@ export default function TenantDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AUDIT LOGS TAB (OWNER ONLY) */}
+      {activeTab === "audit-logs" && userRole === "OWNER" && (
+        <div className="max-w-5xl mx-auto space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Audit Logs</h2>
+            <p className="text-xs text-gray-500 mt-1">Track all system activities and changes made by your team</p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-4">
+            {auditLogsLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading audit logs...</div>
+            ) : (auditLogs?.logs || []).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No audit logs yet</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[800px]">
+                  <thead>
+                    <tr className="text-gray-400 font-medium border-b border-gray-200 pb-3">
+                      <th className="pb-3 px-4 font-semibold">Timestamp</th>
+                      <th className="pb-3 px-4 font-semibold">User</th>
+                      <th className="pb-3 px-4 font-semibold">Action</th>
+                      <th className="pb-3 px-4 font-semibold">Entity Type</th>
+                      <th className="pb-3 px-4 font-semibold">Entity Name</th>
+                      <th className="pb-3 px-4 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 text-gray-600">
+                    {(auditLogs?.logs || []).map((log) => (
+                      <tr key={log.audit_id} className="hover:bg-gray-100/40 transition-colors">
+                        <td className="py-3 px-4 text-xs text-gray-500">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-gray-900">{log.user_name || "System"}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                            log.action === "DELETE" ? "bg-red-500/20 text-red-500 border border-red-500/30" :
+                            log.action === "CREATE" ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" :
+                            log.action === "PASSWORD_RESET" ? "bg-blue-500/20 text-blue-500 border border-blue-500/30" :
+                            "bg-gray-100 text-gray-600 border border-gray-300"
+                          }`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-gray-500">{log.entity_type}</td>
+                        <td className="py-3 px-4 font-semibold text-gray-900">{log.entity_name}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                            log.status === "SUCCESS"
+                              ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
+                              : "bg-red-500/20 text-red-500 border border-red-500/30"
+                          }`}>
+                            {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: UPDATE STOCK */}
+      {isUpdateStockOpen && selectedProductForStock && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 md:p-8 space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-gray-900">Update Stock: {selectedProductForStock.name}</h3>
+              <button
+                onClick={() => setIsUpdateStockOpen(false)}
+                className="text-gray-500 hover:text-gray-900 text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Current Stock</label>
+                <p className="text-2xl font-bold text-gray-900">{selectedProductForStock.stockQuantity} units</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Action</label>
+                <select
+                  value={stockAction}
+                  onChange={(e) => setStockAction(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 text-gray-900"
+                >
+                  <option value="add">Add to Stock (+)</option>
+                  <option value="subtract">Remove from Stock (-)</option>
+                  <option value="set">Set Exact Quantity</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  {stockAction === "add" ? "Units to Add" : stockAction === "subtract" ? "Units to Remove" : "New Quantity"}
+                </label>
+                <input
+                  type="number"
+                  value={stockQuantity}
+                  onChange={(e) => setStockQuantity(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  className="w-full text-xs px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 text-gray-900"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsUpdateStockOpen(false)}
+                className="px-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!stockQuantity) {
+                    alert("Please enter a quantity");
+                    return;
+                  }
+
+                  try {
+                    const token = localStorage.getItem("digisol_token");
+                    const res = await fetch(
+                      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/products/${selectedProductForStock.id}/inventory`,
+                      {
+                        method: "PATCH",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          quantity: parseInt(stockQuantity),
+                          action: stockAction,
+                        }),
+                      }
+                    );
+
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert(`✅ Stock updated!\n${selectedProductForStock.name} now has ${data.newQuantity} units`);
+                      setIsUpdateStockOpen(false);
+                      refetchProducts();
+                    } else {
+                      alert(`Failed: ${data.error}`);
+                    }
+                  } catch (err) {
+                    alert(`Error: ${err.message}`);
+                  }
+                }}
+                className="px-5 py-2.5 text-xs font-semibold text-white bg-[#2D6A4F] hover:bg-[#1f4d38] rounded-xl transition shadow-md"
+              >
+                Update Stock
+              </button>
+            </div>
           </div>
         </div>
       )}

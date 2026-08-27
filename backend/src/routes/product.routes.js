@@ -3,7 +3,7 @@
 import express from 'express';
 import multer from 'multer';
 import { bulkUploadProducts } from '../controllers/bulkUpload.controller.js';
-import { addProduct, getProductByBarcode, listProducts, removeProduct } from '../controllers/product.controller.js';
+import { addProduct, getProductByBarcode, listProducts, removeProduct, updateProductInventory } from '../controllers/product.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/role.middleware.js';
 
@@ -19,6 +19,9 @@ router.post('/', authenticate, requireRole('OWNER'), addProduct);
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/bulk-upload', authenticate, requireRole('OWNER'), upload.single('file'), bulkUploadProducts);
+
+// Owner-only to update inventory (top up stock)
+router.patch('/:productId/inventory', authenticate, requireRole('OWNER'), updateProductInventory);
 
 // Owner-only to delete products — MUST come before /:barcode to avoid route conflicts
 router.delete('/:id', authenticate, requireRole('OWNER'), removeProduct);

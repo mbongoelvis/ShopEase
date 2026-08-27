@@ -44,13 +44,13 @@ export async function listProductsByStore(storeId) {
   // First, ensure all parent products have inventory records for this store
   await pool.query(
     `INSERT INTO inventory (product_id, store_id, quantity)
-     SELECT DISTINCT p.product_id, $1, 0
+     SELECT DISTINCT p.product_id, $1::uuid, 0
      FROM product p
      WHERE p.parent_id IS NULL
        AND NOT EXISTS (
          SELECT 1 FROM inventory i
          WHERE i.product_id = p.product_id
-         AND i.store_id = $1
+         AND i.store_id = $1::uuid
        )
      ON CONFLICT DO NOTHING`,
     [storeId]
@@ -62,11 +62,16 @@ export async function listProductsByStore(storeId) {
        p.name,
        p.price,
        c.name as category_name,
-       COALESCE(i.quantity, 0) as stock
+       COALESCE(i.quantity, 0) as stock,
+       COALESCE(s.supplier_id, NULL) as supplier_id,
+       COALESCE(s.supplier_name, NULL) as supplier_name
      FROM product p
      LEFT JOIN category c ON p.category_id = c.categ_id
-     LEFT JOIN inventory i ON p.product_id = i.product_id AND i.store_id = $1
+     LEFT JOIN inventory i ON p.product_id = i.product_id AND i.store_id = $1::uuid
+     LEFT JOIN purchase_order po ON p.product_id = po.product_id
+     LEFT JOIN supplier s ON po.supplier_id = s.supplier_id
      WHERE p.parent_id IS NULL
+     GROUP BY p.product_id, c.categ_id, c.name, i.product_id, i.quantity, s.supplier_id, s.supplier_name
      ORDER BY p.created_at DESC`,
     [storeId]
   );
@@ -86,6 +91,18 @@ export async function deleteProduct(productId) {
     );
     const variants = variantsResult.rows;
     const allProductIds = [productId, ...variants.map(v => v.product_id)];
+
+    // Check if product has been used in sales
+    const saleItemsResult = await client.query(
+      'SELECT COUNT(*) as count FROM sale_item WHERE product_id = ANY($1)',
+      [allProductIds]
+    );
+    const saleItemCount = parseInt(saleItemsResult.rows[0].count);
+
+    if (saleItemCount > 0) {
+      await client.query('ROLLBACK');
+      throw new Error(`Cannot delete this product: it has been used in ${saleItemCount} sale(s). Products with sales history cannot be deleted.`);
+    }
 
     // Delete purchase orders that reference this product or its variants
     await client.query(
