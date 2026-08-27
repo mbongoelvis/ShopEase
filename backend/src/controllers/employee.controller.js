@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { hashPassword } from '../services/auth.service.js';
+import { createAuditLog } from '../models/auditLog.model.js';
 
 export async function getEmployees(req, res) {
   try {
@@ -33,11 +34,25 @@ export async function deleteEmployee(req, res) {
       return res.status(404).json({ error: 'Employee not found or not in your store' });
     }
 
+    const empName = employeeResult.rows[0].user_name;
+
     // Delete employee
     await pool.query(
       'DELETE FROM user_account WHERE user_id = $1',
       [employeeId]
     );
+
+    // Log deletion
+    await createAuditLog({
+      userId: req.user.userId,
+      storeId: req.user.storeId,
+      action: 'DELETE',
+      entityType: 'EMPLOYEE',
+      entityId: employeeId,
+      entityName: empName,
+      status: 'SUCCESS',
+      details: { employeeId }
+    });
 
     res.json({ message: 'Employee account deleted successfully' });
   } catch (err) {
@@ -73,6 +88,18 @@ export async function resetEmployeePassword(req, res) {
       'UPDATE user_account SET password_hash = $1, must_reset_password = true WHERE user_id = $2',
       [passwordHash, employeeId]
     );
+
+    // Log password reset
+    await createAuditLog({
+      userId: req.user.userId,
+      storeId: req.user.storeId,
+      action: 'PASSWORD_RESET',
+      entityType: 'EMPLOYEE',
+      entityId: employeeId,
+      entityName: employee.user_name,
+      status: 'SUCCESS',
+      details: { email: employee.email, tempPasswordLength: tempPassword.length }
+    });
 
     res.json({
       message: 'Password reset successfully',
