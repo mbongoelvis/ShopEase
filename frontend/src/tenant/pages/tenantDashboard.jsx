@@ -53,7 +53,8 @@ export default function TenantDashboard() {
   const { data: flagsData } = useApi('/analytics/security-flags');
 
   const totalRevenue = (revenueData?.revenue || []).reduce((sum, m) => sum + Number(m.revenue || 0), 0);
-  const lowStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock <= 5).length;
+  const lowStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock <= 5 && item.current_stock > 0).length;
+  const outOfStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock === 0).length;
   const discrepancyCount = (flagsData?.flags || []).reduce((sum, f) => sum + Number(f.discrepancy_count || 0), 0);
 
   // 1. ACTIVE TAB STATE
@@ -65,14 +66,23 @@ export default function TenantDashboard() {
   const { data: categories = [], loading: categoriesLoading, refetch: refetchCategories } = useApi('/categories');
 
   // Transform backend product shape to UI shape
-  const transformedProducts = (products || []).map((p) => ({
-    id: p.product_id,
-    name: p.name,
-    category: p.category_name,
-    variants: 1,
-    price: p.price,
-    stock: p.stock > 0 ? "In stock" : "Low stock",
-  }));
+  const transformedProducts = (products || []).map((p) => {
+    let stockStatus = "In stock";
+    if (p.stock === 0) {
+      stockStatus = "Out of stock";
+    } else if (p.stock > 0 && p.stock <= 5) {
+      stockStatus = "Low stock";
+    }
+    return {
+      id: p.product_id,
+      name: p.name,
+      category: p.category_name,
+      variants: 1,
+      price: p.price,
+      stock: stockStatus,
+      stockQuantity: p.stock,
+    };
+  });
 
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
@@ -431,6 +441,40 @@ export default function TenantDashboard() {
               );
             })}
           </nav>
+        
+          {/* ACCOUNT MENU - BOTTOM OF SIDEBAR */}
+          <div className="mt-auto pt-6 border-t border-gray-200 relative">
+            <button
+              onClick={() => setIsAccountOpen(!isAccountOpen)}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-medium rounded-xl text-gray-600 hover:bg-gray-100/60 hover:text-gray-900 transition-all"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                {currentUser?.name?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-semibold text-gray-900 truncate">{currentUser?.name || "User"}</p>
+                <p className="text-[10px] text-gray-500">{userRoleDisplay}</p>
+              </div>
+              <svg className={`w-4 h-4 transition-transform ${isAccountOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+
+            {/* ACCOUNT DROPDOWN */}
+            {isAccountOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1 z-50">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50/60 rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* MAIN CONTENT AREA */}
@@ -461,10 +505,18 @@ export default function TenantDashboard() {
 
                 {/* LOW STOCK CARD */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-2 h-full bg-[#D35327]" />
-                  <span className="text-xs font-medium text-gray-500 block mb-1">Low-stock items</span>
-                  <span className="text-3xl font-extrabold text-[#F27042]">{lowStockCount}</span>
-                  <span className="text-[11px] text-gray-500 mt-2 block">Requires restocking</span>
+                  <div className="absolute top-0 right-0 w-2 h-full bg-amber-500" />
+                  <span className="text-xs font-medium text-gray-500 block mb-1">Low-stock items (1-5)</span>
+                  <span className="text-3xl font-extrabold text-amber-400">{lowStockCount}</span>
+                  <span className="text-[11px] text-gray-500 mt-2 block">Requires restocking soon</span>
+                </div>
+
+                {/* OUT OF STOCK CARD */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-2 h-full bg-red-500" />
+                  <span className="text-xs font-medium text-gray-500 block mb-1">Out of stock</span>
+                  <span className="text-3xl font-extrabold text-red-400">{outOfStockCount}</span>
+                  <span className="text-[11px] text-red-400 mt-2 block">Urgent restocking needed</span>
                 </div>
 
                 {/* DISCREPANCY CARD */}
@@ -762,15 +814,20 @@ export default function TenantDashboard() {
                           <td className="py-4 text-gray-500">{p.variants} SKUs</td>
                           <td className="py-4 font-semibold text-gray-900">${p.price}</td>
                           <td className="py-4 text-right">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                p.stock === "Low stock"
-                                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              }`}
-                            >
-                              {p.stock}
-                            </span>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-gray-600">{p.stockQuantity}</span>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                  p.stock === "Out of stock"
+                                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                    : p.stock === "Low stock"
+                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                }`}
+                              >
+                                {p.stock}
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       ))}

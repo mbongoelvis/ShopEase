@@ -1,12 +1,12 @@
 
 import express from 'express';
-import { adminLogin } from '../controllers/platformAdmin.controller.js';
+import { adminLogin, sendPaymentReminderEmail, requestPasswordReset, resetPassword } from '../controllers/platformAdmin.controller.js';
 import {
   getTenants,
   getTenantDetail,
   getPlatformAnalytics,
 } from '../controllers/tenant.controller.js';
-import { getAllBilling, payInvoice, sendPaymentReminder } from '../controllers/billing.controller.js';
+import { getAllBilling, payInvoice, getAvailablePaymentMethods } from '../controllers/billing.controller.js';
 import { getAllTickets, setTicketStatus } from '../controllers/supportTicket.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireSuperAdmin } from '../middleware/role.middleware.js';
@@ -14,6 +14,10 @@ import { requireSuperAdmin } from '../middleware/role.middleware.js';
 const router = express.Router();
 
 router.post('/login', adminLogin);
+
+// Password reset routes (no auth required)
+router.post('/request-password-reset', requestPasswordReset);
+router.post('/reset-password', resetPassword);
 
 // Every route below requires BOTH a valid token (authenticate) AND
 // specifically a platform-admin token (requireSuperAdmin) — a tenant
@@ -25,8 +29,9 @@ router.get('/analytics', authenticate, requireSuperAdmin, getPlatformAnalytics);
 
 router.get('/billing', authenticate, requireSuperAdmin, getAllBilling);
 router.patch('/billing/invoices/:id/mark-paid', authenticate, requireSuperAdmin, payInvoice);
-router.post('/billing/:storeId/send-reminder', authenticate, requireSuperAdmin, sendPaymentReminder);
- 
+router.post('/send-payment-reminder', authenticate, requireSuperAdmin, sendPaymentReminderEmail);
+router.get('/billing/payment-methods', authenticate, requireSuperAdmin, getAvailablePaymentMethods);
+
 router.get('/support-tickets', authenticate, requireSuperAdmin, getAllTickets);
 router.patch('/support-tickets/:id/status', authenticate, requireSuperAdmin, setTicketStatus);
 

@@ -14,6 +14,8 @@ import supplierRoutes from './routes/supplier.routes.js';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import supportTicketRoutes from './routes/supportTicket.routes.js';
+import billingRoutes from './routes/billing.routes.js';
+import branchRoutes from './routes/branch.routes.js';
 
 const app = express();
 
@@ -29,15 +31,17 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/auth', authRoutes);           // -> POST /auth/login
-app.use('/employees', employeeRoutes);  // -> POST /employees
+app.use('/employees', employeeRoutes);  // -> GET/POST /employees
 app.use('/categories', categoryRoutes); // -> POST/GET /categories
-app.use('/products', productRoutes);    // -> POST /products, GET /products/:barcode
+app.use('/products', productRoutes);    // -> GET/POST /products, GET /products/:barcode
 app.use('/checkout', checkoutRoutes); // -> POST /checkout
 app.use('/exit', exitRoutes); // -> POST /exit
 app.use('/analytics', analyticsRoutes); // -> GET /analytics
 app.use('/suppliers', supplierRoutes); // -> POST /suppliers
 app.use('/purchase-orders', purchaseOrderRoutes); // -> /purchase-orders
 app.use('/admin', adminRoutes); // -> POST /login
+app.use('/branches', branchRoutes); // -> GET/POST /branches
 app.use('/support-tickets', supportTicketRoutes); // -> POST /support-tickets
+app.use('/billing', billingRoutes); // -> GET /billing/me
 
 export default app;

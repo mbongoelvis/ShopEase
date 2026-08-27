@@ -38,3 +38,93 @@ export async function listVariantsByParent(parentId) {
   );
   return result.rows;
 }
+
+// Lists all products for the tenant's store with category names and stock info
+export async function listProductsByStore(storeId) {
+  // First, ensure all parent products have inventory records for this store
+  await pool.query(
+    `INSERT INTO inventory (product_id, store_id, quantity)
+     SELECT DISTINCT p.product_id, $1, 0
+     FROM product p
+     WHERE p.parent_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM inventory i
+         WHERE i.product_id = p.product_id
+         AND i.store_id = $1
+       )
+     ON CONFLICT DO NOTHING`,
+    [storeId]
+  );
+
+  const result = await pool.query(
+    `SELECT
+       p.product_id,
+       p.name,
+       p.price,
+       c.name as category_name,
+       COALESCE(i.quantity, 0) as stock
+     FROM product p
+     LEFT JOIN category c ON p.category_id = c.categ_id
+     LEFT JOIN inventory i ON p.product_id = i.product_id AND i.store_id = $1
+     WHERE p.parent_id IS NULL
+     ORDER BY p.created_at DESC`,
+    [storeId]
+  );
+  return result.rows;
+}
+
+// Deletes a product and its variants, along with related records
+export async function deleteProduct(productId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Find all variants (children) of this product
+    const variantsResult = await client.query(
+      'SELECT product_id FROM product WHERE parent_id = $1',
+      [productId]
+    );
+    const variants = variantsResult.rows;
+    const allProductIds = [productId, ...variants.map(v => v.product_id)];
+
+    // Delete purchase orders that reference this product or its variants
+    await client.query(
+      'DELETE FROM purchase_order WHERE product_id = ANY($1)',
+      [allProductIds]
+    );
+
+    // Delete inventory records for all variants
+    for (const variant of variants) {
+      await client.query(
+        'DELETE FROM inventory WHERE product_id = $1',
+        [variant.product_id]
+      );
+    }
+
+    // Delete all variants
+    await client.query(
+      'DELETE FROM product WHERE parent_id = $1',
+      [productId]
+    );
+
+    // Delete inventory records for the parent product
+    await client.query(
+      'DELETE FROM inventory WHERE product_id = $1',
+      [productId]
+    );
+
+    // Delete the parent product itself
+    const result = await client.query(
+      'DELETE FROM product WHERE product_id = $1 RETURNING *',
+      [productId]
+    );
+
+    await client.query('COMMIT');
+    return result.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}

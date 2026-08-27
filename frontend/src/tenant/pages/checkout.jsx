@@ -92,7 +92,7 @@ export default function Checkout() {
           <h2 className="text-xl font-bold text-gray-900">Sale Complete</h2>
           <div className="space-y-2 text-xs text-gray-500">
             <p>Transaction ID: <span className="text-gray-900 font-semibold">{receipt.sale?.sale_id}</span></p>
-            <p>Total: <span className="text-gray-900 font-semibold">${receipt.total?.toFixed(2)}</span></p>
+            <p>Total (XAF): <span className="text-gray-900 font-semibold">{receipt.total?.toFixed(0)} XAF</span></p>
             <p>Items: <span className="text-gray-900 font-semibold">{receipt.items?.length}</span></p>
           </div>
 
@@ -153,7 +153,7 @@ export default function Checkout() {
                         <p className="text-xs font-semibold text-gray-900">{product.name}</p>
                         <p className="text-[10px] text-gray-400">{product.barcode || "No barcode"}</p>
                       </div>
-                      <span className="text-xs font-bold text-[#52B788]">${product.price}</span>
+                      <span className="text-xs font-bold text-[#52B788]">{product.price} XAF</span>
                     </button>
                   ))}
                 </div>
@@ -174,7 +174,7 @@ export default function Checkout() {
                     <div key={item.productId} className="flex items-center justify-between bg-gray-50/60 rounded-xl px-3 py-2.5 border border-gray-200">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-900 truncate">{item.name}</p>
-                        <p className="text-[10px] text-gray-400">${item.price} each</p>
+                        <p className="text-[10px] text-gray-400">{item.price} XAF each</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
@@ -197,8 +197,8 @@ export default function Checkout() {
               )}
 
               <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
-                <span className="text-xs font-medium text-gray-500">Total</span>
-                <span className="text-lg font-extrabold text-gray-900">${cartTotal.toFixed(2)}</span>
+                <span className="text-xs font-medium text-gray-500">Total (XAF)</span>
+                <span className="text-lg font-extrabold text-gray-900">{cartTotal.toFixed(0)} XAF</span>
               </div>
 
               <button

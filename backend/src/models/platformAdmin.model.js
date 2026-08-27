@@ -18,3 +18,11 @@ export async function createAdmin({ name, email, passwordHash }) {
   );
   return result.rows[0];
 }
+
+export async function updateAdminPassword(adminId, passwordHash) {
+  const result = await pool.query(
+    'UPDATE platform_admin SET password_hash = $1 WHERE admin_id = $2 RETURNING admin_id, name, email',
+    [passwordHash, adminId]
+  );
+  return result.rows[0];
+}

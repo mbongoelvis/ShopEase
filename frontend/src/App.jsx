@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 // Admin Imports
 import AdminLogin from "./admin/pages/LoginForm.jsx";
+import AdminPasswordReset from "./admin/pages/AdminPasswordReset.jsx";
 import ShopEaseAdmin from "./admin/pages/ShopEaseAdmin.jsx";
 
 // Tenant Imports
@@ -27,6 +28,7 @@ export default function App() {
 
         {/* Admin Portal */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/reset-password" element={<AdminPasswordReset />} />
         <Route path="/admin/dashboard" element={<ShopEaseAdmin />} />
 
         {/* Fallback */}
