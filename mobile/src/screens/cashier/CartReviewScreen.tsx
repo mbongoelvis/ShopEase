@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, CartItem } from '../../types';
 import { COLORS } from '../../constants/theme';
+import { formatXaf } from '../../services/api';
 import { useSettings } from '../../context/SettingsContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CartReview'>;
@@ -63,9 +64,9 @@ export const CartReviewScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.summaryItemRow}>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemQty}>x{item.quantity}</Text>
+              <Text style={styles.itemQty}>{`x${item.quantity}-->`} </Text>
             </View>
-            <Text style={styles.itemSubtotal}>${(item.price * item.quantity).toFixed(2)}</Text>
+            <Text style={styles.itemSubtotal}>{formatXaf(item.price * item.quantity)}</Text>
           </View>
         )}
         ItemSeparatorComponent={() => <View style={styles.itemDivider} />}
@@ -75,22 +76,22 @@ export const CartReviewScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={styles.card}>
               <View style={styles.breakdownRow}>
                 <Text style={styles.breakdownLabel}>Subtotal</Text>
-                <Text style={styles.breakdownValue}>${subtotal.toFixed(2)}</Text>
+                <Text style={styles.breakdownValue}>{formatXaf(subtotal)}</Text>
               </View>
               <View style={styles.breakdownRow}>
                 <Text style={styles.breakdownLabel}>Tax (VAT {(taxRate * 100).toFixed(1)}%)</Text>
-                <Text style={styles.breakdownValue}>${tax.toFixed(2)}</Text>
+                <Text style={styles.breakdownValue}>{formatXaf(tax)}</Text>
               </View>
               {discount > 0 && (
                 <View style={styles.breakdownRow}>
                   <Text style={[styles.breakdownLabel, { color: COLORS.errorRed }]}>Discount</Text>
-                  <Text style={[styles.breakdownValue, { color: COLORS.errorRed }]}>-${discount.toFixed(2)}</Text>
+                  <Text style={[styles.breakdownValue, { color: COLORS.errorRed }]}>-{formatXaf(discount)}</Text>
                 </View>
               )}
               <View style={[styles.divider, { marginVertical: 12 }]} />
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>TOTAL</Text>
-                <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatXaf(total)}</Text>
               </View>
             </View>
 

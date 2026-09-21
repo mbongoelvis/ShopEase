@@ -1,6 +1,6 @@
 
 import { createProductWithVariants } from '../services/product.service.js';
-import { findProductByBarcode, listVariantsByParent, listProductsByStore, deleteProduct } from '../models/product.model.js';
+import { findProductByBarcode, listVariantsByParent, listProductsByStore, getProductDetails, deleteProduct, updateProductPrice } from '../models/product.model.js';
 import { createInventoryRecord } from '../models/inventory.model.js';
 import { createAuditLog } from '../models/auditLog.model.js';
 import pool from '../config/db.js';
@@ -26,7 +26,7 @@ export async function addProduct(req, res) {
      //Every product/variant needs a starting inventory row at the
     // creator's store, or checkout has nothing to decrement against.
 
-    const allProducts = result.variants.length > 0 ? result.variants : [result.parent];
+    const allProducts = [result.parent, ...result.variants];
     for (const product of allProducts) {
       await createInventoryRecord({
         productId: product.product_id,
@@ -49,7 +49,7 @@ export async function addProduct(req, res) {
         const parentProduct = result.parent;
         await pool.query(
           'INSERT INTO purchase_order (supplier_id, product_id, qty, status) VALUES ($1, $2, $3, $4)',
-          [supplier.supplier_id, parentProduct.product_id, 0, 'pending']
+          [supplier.supplier_id, parentProduct.product_id, 0, 'DRAFT']
         );
       } catch (supplierErr) {
         console.warn('Warning: Could not create supplier link:', supplierErr.message);
@@ -146,6 +146,13 @@ export async function updateProductInventory(req, res) {
   }
 
   try {
+    await pool.query(
+      `INSERT INTO inventory (product_id, store_id, quantity)
+       VALUES ($1, $2, 0)
+       ON CONFLICT (product_id, store_id) DO NOTHING`,
+      [productId, storeId]
+    );
+
     let newQuantity;
 
     if (action === 'set') {
@@ -207,8 +214,51 @@ export async function getProductByBarcode(req, res) {
     return res.status(404).json({ error: 'Product not found' });
   }
 
-  // If this IS a parent product, include its variants too — useful so
-  // the mobile app can show "pick a size" after a scan.
+  const storeId = req.user.storeId;
+  const inventoryResult = await pool.query(
+    'SELECT quantity FROM inventory WHERE product_id = $1 AND store_id = $2',
+    [product.product_id, storeId]
+  );
+
   const variants = await listVariantsByParent(product.product_id);
-  res.json({ product, variants });
+  const variantsWithStock = [];
+  for (const variant of variants) {
+    const variantInv = await pool.query(
+      'SELECT quantity FROM inventory WHERE product_id = $1 AND store_id = $2',
+      [variant.product_id, storeId]
+    );
+    variantsWithStock.push({
+      ...variant,
+      stock: variantInv.rows[0]?.quantity ?? 0,
+    });
+  }
+
+  res.json({
+    product: {
+      ...product,
+      stock: inventoryResult.rows[0]?.quantity ?? 0,
+    },
+    variants: variantsWithStock,
+  });
+}
+
+export async function changeProductPrice(req, res) {
+  const price = Number(req.body.price);
+  if (!Number.isFinite(price) || price < 0) {
+    return res.status(400).json({ error: 'price must be a valid non-negative number' });
+  }
+
+  try {
+    const updated = await updateProductPrice(req.params.productId, price);
+    if (!updated) return res.status(404).json({ error: 'Product not found' });
+    res.json({ products: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Failed to update product price' });
+  }
+}
+
+export async function productDetails(req, res) {
+  const details = await getProductDetails(req.params.productId, req.user.storeId);
+  if (!details) return res.status(404).json({ error: 'Product not found' });
+  res.json(details);
 }

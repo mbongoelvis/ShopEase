@@ -11,10 +11,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
+import { showSettingsComingSoonAlert } from '../../utils/comingSoon';
+import { getUserInitials } from '../../utils/user';
+import { apiRequest } from '../../services/api';
 
 export const StockerProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { logout } = useAuth();
+  const { logout, user, changePassword } = useAuth();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [productCount, setProductCount] = useState(0);
+  const [categoryCount, setCategoryCount] = useState(0);
+
+  React.useEffect(() => {
+    Promise.all([apiRequest<any[]>('/products'), apiRequest<any[]>('/categories')])
+      .then(([products, categories]) => {
+        setProductCount(products.length);
+        setCategoryCount(categories.length);
+      })
+      .catch(() => {
+        setProductCount(0);
+        setCategoryCount(0);
+      });
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -32,20 +49,20 @@ export const StockerProfileScreen: React.FC<{ navigation: any }> = ({ navigation
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>SE</Text>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
           </View>
-          <Text style={styles.userName}>Sophia E.</Text>
-          <Text style={styles.userRole}>Stocker — Buea Town</Text>
+          <Text style={styles.userName}>{user?.name || 'User'}</Text>
+          <Text style={styles.userRole}>Stocker — {user?.storeName || 'Store'}</Text>
         </View>
 
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>48</Text>
+            <Text style={styles.statValue}>{productCount}</Text>
             <Text style={styles.statLabel}>Products Added</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{categoryCount}</Text>
             <Text style={styles.statLabel}>Categories</Text>
           </View>
         </View>
@@ -60,7 +77,7 @@ export const StockerProfileScreen: React.FC<{ navigation: any }> = ({ navigation
 
           <View style={styles.menuDivider} />
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('TaxRateSettings')}>
+          <TouchableOpacity style={styles.menuItem} onPress={showSettingsComingSoonAlert}>
             <Text style={styles.menuIcon}>⚙️</Text>
             <Text style={styles.menuLabel}>Settings</Text>
             <Text style={styles.menuArrow}>›</Text>
@@ -92,6 +109,10 @@ export const StockerProfileScreen: React.FC<{ navigation: any }> = ({ navigation
       <ChangePasswordModal
         visible={showChangePassword}
         onClose={() => setShowChangePassword(false)}
+        onConfirm={async (currentPassword, newPassword) => {
+          await changePassword(currentPassword, newPassword);
+          return true;
+        }}
       />
     </SafeAreaView>
   );

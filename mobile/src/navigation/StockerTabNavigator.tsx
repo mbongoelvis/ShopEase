@@ -6,7 +6,7 @@ import { StockerInventoryScreen } from '../screens/stocker/StockerInventoryScree
 import { StockerDashboardScreen } from '../screens/stocker/StockerDashboardScreen';
 import { StockerProfileScreen } from '../screens/stocker/StockerProfileScreen';
 
-const Tab = createBottomTabNavigator();
+const Tab: any = createBottomTabNavigator();
 
 export const StockerTabNavigator = () => {
   return (
@@ -24,7 +24,7 @@ export const StockerTabNavigator = () => {
         name="Inventory"
         component={StockerInventoryScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>📦</Text>
           ),
         }}
@@ -34,7 +34,7 @@ export const StockerTabNavigator = () => {
         component={StockerDashboardScreen}
         options={{
           tabBarLabel: 'Add Product',
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>➕</Text>
           ),
         }}
@@ -43,7 +43,7 @@ export const StockerTabNavigator = () => {
         name="Profile"
         component={StockerProfileScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>👤</Text>
           ),
         }}

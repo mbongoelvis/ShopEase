@@ -16,13 +16,26 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, Transaction } from '../../types';
 import { COLORS } from '../../constants/theme';
 import { useTransactions } from '../../context/TransactionContext';
+import { formatXaf } from '../../services/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TransactionHistory'>;
 type FilterTab = 'Today' | 'Yesterday' | 'This Week' | 'This Month';
 
+function formatTransactionDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
-  const { transactions, getStats } = useTransactions();
-  const stats = getStats();
+  const { transactions } = useTransactions();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<FilterTab>('Today');
@@ -43,20 +56,30 @@ export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
 
     if (!matchesSearch) return false;
 
-    // 2. Tab Date Filter
+    const transactionDate = new Date(tx.dateTime);
+    if (Number.isNaN(transactionDate.getTime())) return false;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     if (selectedTab === 'Today') {
-      return tx.dateTime.includes('Aug 20, 2026');
+      return transactionDate >= todayStart;
     }
     if (selectedTab === 'Yesterday') {
-      return tx.dateTime.includes('Aug 19, 2026');
+      return transactionDate >= yesterdayStart && transactionDate < todayStart;
     }
     if (selectedTab === 'This Week') {
-      // Mock inclusion for demo
-      return tx.dateTime.includes('Aug 20, 2026') || tx.dateTime.includes('Aug 19, 2026') || tx.dateTime.includes('Aug 18, 2026');
+      return transactionDate >= weekStart;
     }
-    // This Month includes all
-    return true;
+    return transactionDate >= monthStart;
   });
+
+  const filteredTotal = filteredTransactions.reduce((sum, transaction) => sum + transaction.total, 0);
 
   const handleOpenDetail = (tx: Transaction) => {
     setSelectedTx(tx);
@@ -80,9 +103,9 @@ export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
       <TouchableOpacity style={styles.txCard} onPress={() => handleOpenDetail(item)}>
         {/* Top Row */}
         <View style={styles.txCardRow}>
-          <Text style={styles.txCardId}>#{item.id}</Text>
-          <Text style={styles.txCardTime}>{item.dateTime.split('-')[1]?.trim() || item.dateTime}</Text>
-          <Text style={styles.txCardTotal}>${item.total.toFixed(2)}</Text>
+          <Text style={styles.txCardId}>#{item.id.slice(0, 10)}...</Text>
+          <Text style={styles.txCardTime}>{formatTransactionDateTime(item.dateTime)}</Text>
+          <Text style={styles.txCardTotal}>{formatXaf(item.total)}</Text>
         </View>
 
         {/* Middle Row */}
@@ -134,8 +157,8 @@ export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transaction History</Text>
         <View style={styles.headerRight}>
-          <Text style={styles.headerStatsLabel}>Today</Text>
-          <Text style={styles.headerStatsVal}>${stats.totalSales.toFixed(2)}</Text>
+          <Text style={styles.headerStatsLabel}>{selectedTab}</Text>
+          <Text style={styles.headerStatsVal}>{formatXaf(filteredTotal)}</Text>
         </View>
       </View>
 
@@ -225,7 +248,7 @@ export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.modalItemText}>
                     {item.name} <Text style={{ color: COLORS.textMuted }}>x{item.quantity}</Text>
                   </Text>
-                  <Text style={styles.modalItemVal}>${(item.price * item.quantity).toFixed(2)}</Text>
+                  <Text style={styles.modalItemVal}>{formatXaf(item.price * item.quantity)}</Text>
                 </View>
               ))}
 
@@ -234,21 +257,21 @@ export const TransactionHistoryScreen: React.FC<Props> = ({ navigation }) => {
               {/* Totals */}
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Subtotal</Text>
-                <Text style={styles.detailValue}>${selectedTx.subtotal.toFixed(2)}</Text>
+                <Text style={styles.detailValue}>{formatXaf(selectedTx.subtotal)}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Tax</Text>
-                <Text style={styles.detailValue}>${selectedTx.tax.toFixed(2)}</Text>
+                <Text style={styles.detailValue}>{formatXaf(selectedTx.tax)}</Text>
               </View>
               {selectedTx.discount > 0 && (
                 <View style={styles.detailRow}>
                   <Text style={[styles.detailLabel, { color: COLORS.errorRed }]}>Discount</Text>
-                  <Text style={[styles.detailValue, { color: COLORS.errorRed }]}>-${selectedTx.discount.toFixed(2)}</Text>
+                  <Text style={[styles.detailValue, { color: COLORS.errorRed }]}>-{formatXaf(selectedTx.discount)}</Text>
                 </View>
               )}
               <View style={[styles.detailRow, { marginTop: 6 }]}>
                 <Text style={styles.detailTotalLabel}>Total Paid</Text>
-                <Text style={styles.detailTotalValue}>${selectedTx.total.toFixed(2)}</Text>
+                <Text style={styles.detailTotalValue}>{formatXaf(selectedTx.total)}</Text>
               </View>
 
               <View style={styles.modalDivider} />

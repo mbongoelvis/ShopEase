@@ -3,25 +3,28 @@
 import express from 'express';
 import multer from 'multer';
 import { bulkUploadProducts } from '../controllers/bulkUpload.controller.js';
-import { addProduct, getProductByBarcode, listProducts, removeProduct, updateProductInventory } from '../controllers/product.controller.js';
+import { addProduct, getProductByBarcode, listProducts, productDetails, removeProduct, updateProductInventory, changeProductPrice } from '../controllers/product.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/role.middleware.js';
 
 const router = express.Router();
 
-// GET /products — lists all products for the tenant's store (Owner + Inventory Monitor)
-router.get('/', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR'), listProducts);
+// GET /products — Owner, inventory monitor, and stocker (floor staff) need catalog + stock
+router.get('/', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR', 'STOCKER'), listProducts);
 
-// Owner-only to create products (matches "Products" tab access in the tenant dashboard)
-router.post('/', authenticate, requireRole('OWNER'), addProduct);
+// Owner and stocker can create products from dashboard / mobile intake
+router.post('/', authenticate, requireRole('OWNER', 'STOCKER'), addProduct);
 
 // memoryStorage: keeps the uploaded file in RAM as a Buffer instead of saving it to disk, fine for CSVs (small, one-time use), avoids the extra step of cleaning up temp files afterward.
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.post('/bulk-upload', authenticate, requireRole('OWNER'), upload.single('file'), bulkUploadProducts);
+router.post('/bulk-upload', authenticate, requireRole('OWNER', 'STOCKER'), upload.single('file'), bulkUploadProducts);
 
-// Owner-only to update inventory (top up stock)
-router.patch('/:productId/inventory', authenticate, requireRole('OWNER'), updateProductInventory);
+// Owner and stocker can top up stock
+router.patch('/:productId/inventory', authenticate, requireRole('OWNER', 'STOCKER'), updateProductInventory);
+router.patch('/:productId/price', authenticate, requireRole('OWNER'), changeProductPrice);
+
+router.get('/details/:productId', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR'), productDetails);
 
 // Owner-only to delete products — MUST come before /:barcode to avoid route conflicts
 router.delete('/:id', authenticate, requireRole('OWNER'), removeProduct);

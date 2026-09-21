@@ -33,13 +33,25 @@ export async function login(req, res) {
     role: user.role,
     storeId: user.store_id,
   });
+
+  let storeName = null;
+  if (user.store_id) {
+    const storeResult = await pool.query(
+      'SELECT store_name FROM store WHERE store_id = $1',
+      [user.store_id]
+    );
+    storeName = storeResult.rows[0]?.store_name || null;
+  }
  
   res.json({
     token,
     user: {
       id: user.user_id,
       name: user.user_name,
+      email: user.email,
       role: user.role,
+      storeId: user.store_id,
+      storeName,
       mustResetPassword: user.must_reset_password,
     },
   });
@@ -104,4 +116,30 @@ export async function changePassword(req, res) {
   const updated = await updatePassword(req.user.userId, newHash);
  
   res.json({ message: 'Password updated successfully', user: updated });
+}
+
+export async function me(req, res) {
+  const user = await findUserById(req.user.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  let storeName = null;
+  if (user.store_id) {
+    const storeResult = await pool.query(
+      'SELECT store_name FROM store WHERE store_id = $1',
+      [user.store_id]
+    );
+    storeName = storeResult.rows[0]?.store_name || null;
+  }
+
+  res.json({
+    user: {
+      id: user.user_id,
+      name: user.user_name,
+      email: user.email,
+      role: user.role,
+      storeId: user.store_id,
+      storeName,
+      mustResetPassword: user.must_reset_password,
+    },
+  });
 }

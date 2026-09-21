@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
 import { COLORS } from '../../constants/theme';
+import { formatXaf } from '../../services/api';
 import { useTransactions } from '../../context/TransactionContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReceiptConfirmation'>;
@@ -34,12 +35,7 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
     );
   }
 
-  // Generate serialized QR code data
-  const qrPayload = JSON.stringify({
-    status: 'valid',
-    transactionId: tx.id,
-    items: tx.items,
-  });
+  const qrPayload = tx.qrCode;
 
   const handleReprintReceipt = () => {
     setIsReprinting(true);
@@ -75,7 +71,7 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
         {/* C. Receipt Summary Card */}
         <View style={styles.receiptCard}>
           <View style={styles.receiptRow}>
-            <Text style={styles.txIdText}>#{tx.id}</Text>
+            <Text style={styles.txIdText}>#{tx.id.slice(0,10)}...</Text>
             <Text style={styles.dateTimeText}>{tx.dateTime}</Text>
           </View>
           <Text style={styles.receiptLabel}>Payment Method: {tx.paymentMethod}</Text>
@@ -89,7 +85,7 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
                 {item.name} <Text style={styles.itemQty}>x{item.quantity}</Text>
               </Text>
               <Text style={styles.itemPrice}>
-                ${(item.price * item.quantity).toFixed(2)}
+                {formatXaf(item.price * item.quantity)}
               </Text>
             </View>
           ))}
@@ -98,12 +94,12 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
 
           <View style={styles.receiptRow}>
             <Text style={styles.receiptTotalLabel}>Total Paid</Text>
-            <Text style={styles.receiptTotalVal}>${tx.total.toFixed(2)}</Text>
+            <Text style={styles.receiptTotalVal}>{formatXaf(tx.total)}</Text>
           </View>
           {tx.change > 0 && (
             <View style={[styles.receiptRow, { marginTop: 4 }]}>
               <Text style={styles.receiptLabel}>Change</Text>
-              <Text style={styles.receiptVal}>${tx.change.toFixed(2)}</Text>
+              <Text style={styles.receiptVal}>{formatXaf(tx.change)}</Text>
             </View>
           )}
         </View>
@@ -115,9 +111,9 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
           <View style={styles.qrContainer}>
             <Image
               source={{
-                uri: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                  qrPayload
-                )}`,
+                uri: qrPayload
+                  ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrPayload)}`
+                  : undefined,
               }}
               style={styles.qrImage}
               resizeMode="contain"
@@ -165,7 +161,7 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Today's Total</Text>
-            <Text style={styles.statValue}>${stats.totalSales.toFixed(2)}</Text>
+            <Text style={styles.statValue}>{formatXaf(stats.totalSales)}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Transactions</Text>
@@ -174,7 +170,7 @@ export const ReceiptConfirmationScreen: React.FC<Props> = ({ navigation, route }
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Avg. Value</Text>
             <Text style={[styles.statValue, { color: COLORS.textPrimary }]}>
-              ${stats.avgValue.toFixed(2)}
+              {formatXaf(stats.avgValue)}
             </Text>
           </View>
         </View>

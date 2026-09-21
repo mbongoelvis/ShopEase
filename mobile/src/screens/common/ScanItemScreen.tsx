@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, CartItem } from '../../types';
 import { COLORS } from '../../constants/theme';
+import { apiRequest, formatXaf } from '../../services/api';
 import { useTransactions } from '../../context/TransactionContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScanItem'>;
@@ -28,7 +29,7 @@ function parseScanData(data: string): { status: 'valid' | 'invalid'; items: Cart
       return {
         status: parsed.status,
         transactionId: parsed.transactionId,
-        items: items.length ? items : [{ id: '1', name: 'Unknown Item', price: 0, quantity: 1 }],
+        items,
       };
     }
   } catch {
@@ -51,7 +52,7 @@ function parseScanData(data: string): { status: 'valid' | 'invalid'; items: Cart
 
   return {
     status: parts.length ? 'valid' : 'invalid',
-    items: parts.length ? parts : [{ id: '1', name: 'Scanned Item', price: 35.0, quantity: 1 }],
+    items: parts,
   };
 }
 
@@ -109,18 +110,64 @@ export const ScanItemScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
-    const parsed = parseScanData(data);
+    let parsed = parseScanData(data);
+
+    if (route.params?.scanContext === 'cashier') {
+      try {
+        let lookupValue = data.trim();
+        try {
+          const qrPayload = JSON.parse(lookupValue);
+          lookupValue = String(qrPayload.barcode || qrPayload.sku || qrPayload.product?.barcode || '');
+        } catch {
+          // Product barcodes are normally plain scanner data.
+        }
+
+        if (!lookupValue) throw new Error('This QR code does not contain a product barcode.');
+
+        const response = await apiRequest<{ product: { product_id: string; name: string; price: number; barcode: string } }>(`/products/${encodeURIComponent(lookupValue)}`);
+        parsed = {
+          status: 'valid',
+          items: [{
+            id: String(response.product.product_id),
+            name: response.product.name,
+            price: Number(response.product.price),
+            quantity: 1,
+            sku: response.product.barcode,
+          }],
+        };
+      } catch (error) {
+        Alert.alert('Product not found', error instanceof Error ? error.message : 'Unable to find this product in the store database.');
+        setScanned(false);
+        return;
+      }
+    }
 
     if (route.params?.scanContext === 'guard') {
-      navigation.navigate('SecurityScanOutput', {
-        status: parsed.status,
-        items: parsed.items,
-        transactionId: parsed.transactionId,
-      });
+      try {
+        const verification = await apiRequest<{ receipt: { transaction_id: string }; items: any[] }>('/exit/validate', {
+          method: 'POST',
+          body: JSON.stringify({ qrCode: data.trim() }),
+        });
+        navigation.navigate('SecurityScanOutput', {
+          status: 'valid',
+          items: verification.items.map((item) => ({
+            id: String(item.product_id),
+            name: item.name,
+            price: Number(item.price),
+            quantity: Number(item.qty),
+            sku: item.barcode,
+          })),
+          transactionId: String(verification.receipt.transaction_id),
+          qrCode: data.trim(),
+        });
+      } catch (error) {
+        Alert.alert('Receipt verification failed', error instanceof Error ? error.message : 'Unable to verify this receipt.');
+        setScanned(false);
+      }
       return;
     }
 
@@ -179,7 +226,7 @@ export const ScanItemScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.confirmationTitle} numberOfLines={1}>
               {addedItem.name}
             </Text>
-            <Text style={styles.confirmationPrice}>${addedItem.price.toFixed(2)} · Added to cart</Text>
+            <Text style={styles.confirmationPrice}>{formatXaf(addedItem.price)} · Added to cart</Text>
           </View>
         </Animated.View>
       )}

@@ -36,7 +36,7 @@ export async function processBulkUpload(csvBuffer, storeId) {
         colors,
       });
 
-      const allProducts = result.variants.length > 0 ? result.variants : [result.parent];
+      const allProducts = [result.parent, ...result.variants];
       for (const product of allProducts) {
         await createInventoryRecord({
           productId: product.product_id,

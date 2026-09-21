@@ -61,7 +61,10 @@ export async function listProductsByStore(storeId) {
        p.product_id,
        p.name,
        p.price,
+       p.barcode,
+      p.created_at,
        c.name as category_name,
+      c.base_price as category_base_price,
        COALESCE(i.quantity, 0) as stock,
        COALESCE(s.supplier_id, NULL) as supplier_id,
        COALESCE(s.supplier_name, NULL) as supplier_name
@@ -71,11 +74,68 @@ export async function listProductsByStore(storeId) {
      LEFT JOIN purchase_order po ON p.product_id = po.product_id
      LEFT JOIN supplier s ON po.supplier_id = s.supplier_id
      WHERE p.parent_id IS NULL
-     GROUP BY p.product_id, c.categ_id, c.name, i.product_id, i.quantity, s.supplier_id, s.supplier_name
+    GROUP BY p.product_id, p.created_at, c.categ_id, c.name, c.base_price, i.product_id, i.quantity, s.supplier_id, s.supplier_name
      ORDER BY p.created_at DESC`,
     [storeId]
   );
   return result.rows;
+}
+
+export async function getProductDetails(productId, storeId) {
+  const productResult = await pool.query(
+    `SELECT p.product_id, p.name, p.barcode, p.price, p.created_at,
+            c.name AS category_name, c.base_price AS category_base_price,
+            COALESCE(i.quantity, 0) AS stock,
+            s.supplier_name
+     FROM product p
+     LEFT JOIN category c ON p.category_id = c.categ_id
+     LEFT JOIN inventory i ON i.product_id = p.product_id AND i.store_id = $2::uuid
+     LEFT JOIN purchase_order po ON po.product_id = p.product_id
+     LEFT JOIN supplier s ON s.supplier_id = po.supplier_id
+     WHERE p.product_id = $1`,
+    [productId, storeId]
+  );
+  const product = productResult.rows[0];
+  if (!product) return null;
+
+  const variantsResult = await pool.query(
+    `SELECT p.product_id, p.name, p.barcode, p.price, p.variant_attrs,
+            COALESCE(i.quantity, 0) AS stock
+     FROM product p
+     LEFT JOIN inventory i ON i.product_id = p.product_id AND i.store_id = $2::uuid
+     WHERE p.parent_id = $1
+     ORDER BY p.created_at`,
+    [productId, storeId]
+  );
+  return { product, variants: variantsResult.rows };
+}
+
+export async function updateProductPrice(productId, price) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const parentResult = await client.query(
+      'SELECT COALESCE(parent_id, product_id) AS parent_id FROM product WHERE product_id = $1',
+      [productId]
+    );
+    if (!parentResult.rows[0]) return null;
+
+    const parentId = parentResult.rows[0].parent_id;
+    const result = await client.query(
+      `UPDATE product
+       SET price = $1
+       WHERE product_id = $2 OR parent_id = $2
+       RETURNING product_id, price`,
+      [price, parentId]
+    );
+    await client.query('COMMIT');
+    return result.rows;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Deletes a product and its variants, along with related records

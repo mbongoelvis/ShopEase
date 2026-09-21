@@ -14,33 +14,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, CartItem } from '../../types';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { formatXaf } from '../../services/api';
+import { showSettingsComingSoonAlert } from '../../utils/comingSoon';
+import { getUserInitials } from '../../utils/user';
 import { useTransactions } from '../../context/TransactionContext';
+import { apiRequest } from '../../services/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SecurityScanOutput'>;
 
 export const SecurityScanOutputScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { status, items, transactionId } = route.params ?? { status: 'invalid', items: [] as CartItem[] };
-  const { updateTransactionStatus } = useTransactions();
+  const { user } = useAuth();
+  const { status, items, transactionId, qrCode } = route.params ?? { status: 'invalid', items: [] as CartItem[] };
   const [modalVisible, setModalVisible] = useState(false);
   const [discrepancyText, setDiscrepancyText] = useState('');
 
   const isValid = status === 'valid';
 
   const handleExit = () => {
-    if (transactionId) {
-      updateTransactionStatus(transactionId, 'Collected');
-    }
     navigation.navigate('GuardHome');
   };
 
   const handleSendDiscrepancy = () => {
     if (!discrepancyText.trim()) return;
     setModalVisible(false);
-    if (transactionId) {
-      updateTransactionStatus(transactionId, 'Discrepancy — Held');
-    }
-    Alert.alert('Discrepancy submitted', 'Your report has been sent to the security team.');
-    setDiscrepancyText('');
+    apiRequest('/exit/report', {
+      method: 'POST',
+      body: JSON.stringify({ qrCode, reason: discrepancyText.trim() }),
+    }).then(() => {
+      Alert.alert('Discrepancy submitted', 'Your report has been sent to the security team.');
+      setDiscrepancyText('');
+    }).catch((error) => {
+      Alert.alert('Report failed', error instanceof Error ? error.message : 'Unable to submit the discrepancy.');
+    });
   };
 
   const renderItem = ({ item }: { item: CartItem }) => (
@@ -49,7 +55,7 @@ export const SecurityScanOutputScreen: React.FC<Props> = ({ navigation, route })
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemQuantity}>Qty {item.quantity}</Text>
       </View>
-      <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+      <Text style={styles.itemPrice}>{formatXaf(item.price * item.quantity)}</Text>
     </View>
   );
 
@@ -57,12 +63,12 @@ export const SecurityScanOutputScreen: React.FC<Props> = ({ navigation, route })
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerUser}>Jane M. · Lekki</Text>
+          <Text style={styles.headerUser}>{user?.name || 'User'} · {user?.storeName || 'Store'}</Text>
           <TouchableOpacity
             style={styles.avatar}
-            onPress={() => navigation.navigate('TaxRateSettings')}
+            onPress={showSettingsComingSoonAlert}
           >
-            <Text style={styles.avatarText}>JM</Text>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
           </TouchableOpacity>
         </View>
 

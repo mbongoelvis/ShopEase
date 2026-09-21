@@ -26,7 +26,7 @@ export async function createUser({ name, email, passwordHash, role, storeId, mus
 // How we find users — useful later for "get my own profile" endpoints.
 export async function findUserById(userId) {
   const result = await pool.query(
-    'SELECT user_id, user_name, email, role, store_id, created_at FROM user_account WHERE user_id = $1',
+    'SELECT user_id, user_name, email, role, store_id, created_at, must_reset_password FROM user_account WHERE user_id = $1',
     [userId]
   );
   return result.rows[0];
