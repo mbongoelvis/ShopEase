@@ -132,6 +132,10 @@ export default function TenantDashboard() {
   // New Product Form State
   const [barcodeInput, setBarcodeInput] = useState("");
   const [newProductName, setNewProductName] = useState("");
+  const [newProductPriceOverride, setNewProductPriceOverride] = useState("");
+  const [isUpdatePriceOpen, setIsUpdatePriceOpen] = useState(false);
+  const [selectedProductForPrice, setSelectedProductForPrice] = useState(null);
+  const [newPriceInput, setNewPriceInput] = useState("");
   const [newProductCategory, setNewProductCategory] = useState("");
   const [newProductSupplier, setNewProductSupplier] = useState("");
   const [selectedSizes, setSelectedSizes] = useState(["S", "M", "L"]);
@@ -174,10 +178,8 @@ export default function TenantDashboard() {
   const [empBranch, setEmpBranch] = useState("Buea");
 
   // 4. BRANCHES STATE & MODAL HANDLERS
-  const [branches, setBranches] = useState([
-    { id: 1, name: "Main store, Molyko", employeesCount: 8, openedYear: 2023, stockHealth: "Good", isSettingUp: false },
-    { id: 4, name: "Buea Town - setting up", employeesCount: 0, openedYear: 2026, stockHealth: "", isSettingUp: true },
-  ]);
+  const { data: rawBranches = [], loading: branchesLoading, refetch: refetchBranches } = useApi('/branches');
+  const branches = rawBranches.branches || rawBranches || [];
 
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
   const [branchName, setBranchName] = useState("");
@@ -223,6 +225,24 @@ export default function TenantDashboard() {
   };
 
   // Handlers
+  const handleUpdatePrice = async (e) => {
+    e.preventDefault();
+    if (!newPriceInput) return;
+    try {
+      const token = localStorage.getItem('digisol_token');
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/products/` + selectedProductForPrice.id + '/price', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ price: Number(newPriceInput) })
+      });
+      if (!res.ok) throw new Error("Failed to update price");
+      alert("Price updated successfully!");
+      setIsUpdatePriceOpen(false);
+      refetchProducts();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
   const handleCreateProductSubmit = async (e) => {
     e.preventDefault();
     if (!newProductName || !newProductCategory) return;
@@ -244,7 +264,7 @@ export default function TenantDashboard() {
           body: JSON.stringify({
             name: newProductName,
             categoryId: newProductCategory,
-            priceOverride: 42,
+            priceOverride: newProductPriceOverride ? Number(newProductPriceOverride) : null,
             barcode: barcodeInput,
             sizes: selectedSizes,
             colors: selectedColors,
@@ -263,6 +283,7 @@ export default function TenantDashboard() {
       // Close form and reset fields immediately
       setIsNewProductOpen(false);
       setNewProductName("");
+      setNewProductPriceOverride("");
       setNewProductCategory("");
       setNewProductSupplier("");
       setSelectedSizes(["S", "M", "L"]);
@@ -439,21 +460,25 @@ export default function TenantDashboard() {
     }
   };
 
-  const handleAddBranch = (e) => {
+  const handleAddBranch = async (e) => {
     e.preventDefault();
     if (!branchName) return;
-    const newBranch = {
-      id: Date.now(),
-      name: branchName,
-      employeesCount: 1,
-      openedYear: 2026,
-      stockHealth: "Good",
-      isSettingUp: false,
-    };
-    setBranches([...branches, newBranch]);
-    setIsAddBranchOpen(false);
-    setBranchName("");
-    setBranchAddress("");
+    try {
+      const token = localStorage.getItem('digisol_token');
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name: branchName, address: branchAddress })
+      });
+      if (!res.ok) throw new Error("Failed to add branch");
+      alert("Branch added successfully!");
+      setIsAddBranchOpen(false);
+      setBranchName("");
+      setBranchAddress("");
+      refetchBranches();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
 
   return (
@@ -1026,35 +1051,46 @@ export default function TenantDashboard() {
                                     }}
                                     className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-blue-50 text-blue-600 transition"
                                   >
-                                    <span>📦</span> Update Stock
+                                    <span>{'\u{1F4E6}'}</span> Update Stock
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedProductForPrice(p);
+                                      setNewPriceInput(p.price || "");
+                                      setIsUpdatePriceOpen(true);
+                                      setOpenMenuProductId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-emerald-50 text-emerald-600 transition border-t border-gray-100"
+                                  >
+                                    <span>{'\u{1F4B5}'}</span> Update Price
                                   </button>
                                   <button
                                     onClick={async () => {
-                                      if (!window.confirm(`Delete ${p.name}? This cannot be undone.`)) return;
+                                      if (!window.confirm("Delete " + p.name + "? This cannot be undone.")) return;
                                       try {
                                         const token = localStorage.getItem('digisol_token');
                                         const res = await fetch(
-                                          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/products/${p.id}`,
+                                          (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/products/' + p.id,
                                           {
                                             method: 'DELETE',
-                                            headers: { Authorization: `Bearer ${token}` },
+                                            headers: { Authorization: "Bearer " + token },
                                           }
                                         );
                                         const data = await res.json();
                                         if (res.ok) {
-                                          alert(`✅ ${p.name} deleted successfully`);
+                                          alert("Deleted " + p.name + " successfully");
                                           setOpenMenuProductId(null);
                                           refetchProducts();
                                         } else {
-                                          alert(`Failed: ${data.error}`);
+                                          alert("Failed: " + data.error);
                                         }
                                       } catch (err) {
-                                        alert(`Error: ${err.message}`);
+                                        alert("Error: " + err.message);
                                       }
                                     }}
                                     className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-red-50 text-red-500 transition border-t border-gray-200"
                                   >
-                                    <span>🗑️</span> Delete
+                                    <span>{'\u{1F5D1}'}</span> Delete
                                   </button>
                                 </div>
                               )}
@@ -1500,6 +1536,19 @@ export default function TenantDashboard() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Price Override</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newProductPriceOverride}
+                  onChange={(e) => setNewProductPriceOverride(e.target.value)}
+                  placeholder="Leave blank to inherit category price"
+                  className="w-full text-xs px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 text-gray-900"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier</label>
                 <input
                   type="text"
@@ -1661,6 +1710,51 @@ export default function TenantDashboard() {
         </div>
       )}
 
+      {/* MODAL: UPDATE PRICE */}
+      {isUpdatePriceOpen && selectedProductForPrice && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 md:p-8 space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-gray-900">Update Price: {selectedProductForPrice.name}</h3>
+              <button
+                onClick={() => setIsUpdatePriceOpen(false)}
+                className="text-gray-500 hover:text-gray-900 text-base font-bold"
+              >
+                X
+              </button>
+            </div>
+            <form onSubmit={handleUpdatePrice} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">New Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={newPriceInput}
+                  onChange={(e) => setNewPriceInput(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]/50 text-gray-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsUpdatePriceOpen(false)}
+                  className="px-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-xs font-semibold text-white bg-[#2D6A4F] hover:bg-[#1B4332] rounded-xl transition shadow-md shadow-[#2D6A4F]/30"
+                >
+                  Update Price
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {/* MODAL: UPDATE STOCK */}
       {isUpdateStockOpen && selectedProductForStock && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
