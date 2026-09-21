@@ -12,9 +12,11 @@ import { COLORS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTransactions } from '../../context/TransactionContext';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
+import { formatXaf } from '../../services/api';
+import { getUserInitials } from '../../utils/user';
 
 export const CashierProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { logout } = useAuth();
+  const { logout, user, changePassword } = useAuth();
   const { transactions } = useTransactions();
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -39,10 +41,10 @@ export const CashierProfileScreen: React.FC<{ navigation: any }> = ({ navigation
         {/* Avatar & Name */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>JD</Text>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
           </View>
-          <Text style={styles.userName}>Jane Doe</Text>
-          <Text style={styles.userRole}>Cashier — Store #01</Text>
+          <Text style={styles.userName}>{user?.name || 'User'}</Text>
+          <Text style={styles.userRole}>Cashier — {user?.storeName || 'Store'}</Text>
         </View>
 
         {/* Stats Summary */}
@@ -53,7 +55,7 @@ export const CashierProfileScreen: React.FC<{ navigation: any }> = ({ navigation
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>${totalSales.toFixed(2)}</Text>
+            <Text style={styles.statValue}>{formatXaf(totalSales)}</Text>
             <Text style={styles.statLabel}>Total Sales</Text>
           </View>
         </View>
@@ -111,6 +113,10 @@ export const CashierProfileScreen: React.FC<{ navigation: any }> = ({ navigation
       <ChangePasswordModal
         visible={showChangePassword}
         onClose={() => setShowChangePassword(false)}
+        onConfirm={async (currentPassword, newPassword) => {
+          await changePassword(currentPassword, newPassword);
+          return true;
+        }}
       />
     </SafeAreaView>
   );

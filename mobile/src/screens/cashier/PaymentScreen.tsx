@@ -12,16 +12,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, Transaction, CartItem } from '../../types';
+import { RootStackParamList } from '../../types';
 import { COLORS } from '../../constants/theme';
 import { useTransactions } from '../../context/TransactionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { apiRequest, formatXaf } from '../../services/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Payment'>;
 type PaymentMethod = 'Cash' | 'Credit/Debit Card' | 'Mobile Payment' | 'Split Payment';
 
 export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { addTransaction } = useTransactions();
+  const { refreshTransactions } = useTransactions();
   const { taxRate } = useSettings();
 
   const {
@@ -66,7 +67,7 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
     }, 1200);
   };
 
-  const handleCompletePayment = () => {
+  const handleCompletePayment = async () => {
     // Validate Cash
     if (selectedMethod === 'Cash') {
       const tenderedVal = parseFloat(cashTendered) || 0;
@@ -82,35 +83,25 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    // Generate Transaction
-    const txId = `TX-${Math.floor(1000 + Math.random() * 9000)}`;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }) + ' - ' + now.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    try {
+      const checkout = await apiRequest<{ sale: { sale_id: string } }>('/checkout', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: cartItems.map((item) => ({ productId: item.id, qty: item.quantity })),
+          paymentMethod: selectedMethod,
+          customerName,
+          customerPhone,
+          discount,
+          tax,
+        }),
+      });
 
-    const newTx: Transaction = {
-      id: txId,
-      dateTime: formattedDate,
-      paymentMethod: selectedMethod,
-      items: cartItems,
-      subtotal,
-      tax,
-      discount,
-      total: totalAmount,
-      change: selectedMethod === 'Cash' ? calculatedChange : 0,
-      status: 'Pending Exit',
-      customerName,
-      customerPhone,
-    };
-
-    addTransaction(newTx);
-    navigation.navigate('ReceiptConfirmation', { transactionId: txId });
+      const txId = String(checkout.sale.sale_id);
+      await refreshTransactions();
+      navigation.navigate('ReceiptConfirmation', { transactionId: txId });
+    } catch (error) {
+      Alert.alert('Payment failed', error instanceof Error ? error.message : 'Unable to complete payment.');
+    }
   };
 
   return (
@@ -132,7 +123,7 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* B. Amount Display */}
           <View style={styles.amountCard}>
             <Text style={styles.amountLabel}>Amount Due</Text>
-            <Text style={styles.amountValue}>${totalAmount.toFixed(2)}</Text>
+            <Text style={styles.amountValue}>{formatXaf(totalAmount)}</Text>
           </View>
 
           {/* C. Payment Method Selection */}
@@ -197,11 +188,11 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={styles.card}>
               <Text style={styles.detailsLabel}>Cash Tendered</Text>
               <View style={styles.tenderInputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
+                <Text style={styles.currencySymbol}>XAF</Text>
                 <TextInput
                   style={styles.tenderInput}
                   keyboardType="numeric"
-                  placeholder="0.00"
+                  placeholder="0000"
                   placeholderTextColor={COLORS.textMuted}
                   value={cashTendered}
                   onChangeText={setCashTendered}
@@ -213,21 +204,21 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
                 <TouchableOpacity style={styles.quickBtn} onPress={setExactAmount}>
                   <Text style={styles.quickBtnText}>Exact Amount</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(10)}>
-                  <Text style={styles.quickBtnText}>+$10</Text>
+                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(500)}>
+                  <Text style={styles.quickBtnText}>+500 XAF</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(20)}>
-                  <Text style={styles.quickBtnText}>+$20</Text>
+                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(5000)}>
+                  <Text style={styles.quickBtnText}>+5000 XAF</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(50)}>
-                  <Text style={styles.quickBtnText}>+$50</Text>
+                <TouchableOpacity style={styles.quickBtn} onPress={() => handleQuickAdd(10000)}>
+                  <Text style={styles.quickBtnText}>+10000 XAF</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Change Display */}
               <View style={styles.changeContainer}>
                 <Text style={styles.changeLabel}>Change Due:</Text>
-                <Text style={styles.changeValue}>${calculatedChange.toFixed(2)}</Text>
+                <Text style={styles.changeValue}>{formatXaf(calculatedChange)}</Text>
               </View>
             </View>
           )}

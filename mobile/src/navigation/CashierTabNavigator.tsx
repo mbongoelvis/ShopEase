@@ -6,7 +6,7 @@ import { CashierDashboardScreen } from '../screens/cashier/CashierDashboardScree
 import { CashierHomeScreen } from '../screens/cashier/CashierHomeScreen';
 import { CashierProfileScreen } from '../screens/cashier/CashierProfileScreen';
 
-const Tab = createBottomTabNavigator();
+const Tab: any = createBottomTabNavigator();
 
 export const CashierTabNavigator = () => {
   return (
@@ -24,7 +24,7 @@ export const CashierTabNavigator = () => {
         name="Dashboard"
         component={CashierDashboardScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>📊</Text>
           ),
         }}
@@ -34,7 +34,7 @@ export const CashierTabNavigator = () => {
         component={CashierHomeScreen}
         options={{
           tabBarLabel: 'Scan',
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>📷</Text>
           ),
         }}
@@ -43,7 +43,7 @@ export const CashierTabNavigator = () => {
         name="Profile"
         component={CashierProfileScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>👤</Text>
           ),
         }}

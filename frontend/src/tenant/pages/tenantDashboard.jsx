@@ -21,6 +21,7 @@ const MENU_ITEMS = [
   { id: "products", label: "Products", icon: "📦", allowedRoles: ["OWNER", "INVENTORY_MONITOR"] },
   { id: "billing", label: "Billing", icon: "💳", allowedRoles: ["OWNER"] },
   { id: "audit-logs", label: "Audit Logs", icon: "📋", allowedRoles: ["OWNER"] },
+  { id: "tickets", label: "Tickets", icon: "🎫", allowedRoles: ["OWNER"] },
 ];
 
 // Helper: Get current user from localStorage (set during login)
@@ -65,6 +66,11 @@ export default function TenantDashboard() {
   const userRole = currentUser?.role || "OWNER";
   const userRoleDisplay = ROLE_DISPLAY_MAP[userRole] || "User";
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketDescription, setTicketDescription] = useState("");
+  const [ticketPriority, setTicketPriority] = useState("MEDIUM");
+  const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [ticketMessage, setTicketMessage] = useState(null);
 
   // Filter menu items based on user's actual role from token
   const visibleMenuItems = MENU_ITEMS.filter(item => item.allowedRoles.includes(userRole));
@@ -75,14 +81,56 @@ export default function TenantDashboard() {
     navigate("/login");
   };
 
+  const handleCreateSupportTicket = async (event) => {
+    event.preventDefault();
+    if (!ticketSubject.trim() || !ticketDescription.trim()) {
+      setTicketMessage({ type: "error", text: "Add a subject and describe the issue before sending." });
+      return;
+    }
+
+    setTicketSubmitting(true);
+    setTicketMessage(null);
+    try {
+      const token = localStorage.getItem("digisol_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/support-tickets`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            subject: ticketSubject.trim(),
+            description: ticketDescription.trim(),
+            priority: ticketPriority,
+          }),
+        }
+      );
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to send support ticket.");
+
+      setTicketSubject("");
+      setTicketDescription("");
+      setTicketPriority("MEDIUM");
+      setTicketMessage({ type: "success", text: "Your support ticket was sent to the ShopEase platform team." });
+    } catch (error) {
+      setTicketMessage({ type: "error", text: error.message || "Unable to send support ticket." });
+    } finally {
+      setTicketSubmitting(false);
+    }
+  };
+
   // ANALYTICS DATA (real API)
-  const { data: revenueData } = useApi('/analytics/revenue');
+  const { data: revenueData } = useApi('/analytics/revenue?days=30');
+  const { data: monthlyRevenueData } = useApi('/analytics/revenue?months=6');
   const { data: turnoverData } = useApi('/analytics/turnover');
   const { data: flagsData } = useApi('/analytics/security-flags');
 
   const totalRevenue = (revenueData?.revenue || []).reduce((sum, m) => sum + Number(m.revenue || 0), 0);
-  const lowStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock <= 5 && item.current_stock > 0).length;
-  const outOfStockCount = (turnoverData?.turnover || []).filter((item) => item.current_stock === 0).length;
+  const lowStockCount = (turnoverData?.turnover || []).filter((item) => Number(item.current_stock) <= 5 && Number(item.current_stock) > 0).length;
+  const outOfStockCount = (turnoverData?.turnover || []).filter((item) => Number(item.current_stock) === 0).length;
   const discrepancyCount = (flagsData?.flags || []).reduce((sum, f) => sum + Number(f.discrepancy_count || 0), 0);
 
   // 1. ACTIVE TAB STATE
@@ -95,6 +143,12 @@ export default function TenantDashboard() {
   const [empRoleFilter, setEmpRoleFilter] = useState("All Roles");
   const [openMenuEmpId, setOpenMenuEmpId] = useState(null);
   const [openMenuProductId, setOpenMenuProductId] = useState(null);
+  const [isChangePriceOpen, setIsChangePriceOpen] = useState(false);
+  const [selectedProductForPrice, setSelectedProductForPrice] = useState(null);
+  const [newProductPrice, setNewProductPrice] = useState("");
+  const [isProductDetailsOpen, setIsProductDetailsOpen] = useState(false);
+  const [selectedProductDetails, setSelectedProductDetails] = useState(null);
+  const [productDetailsLoading, setProductDetailsLoading] = useState(false);
   // 2. PRODUCT STATE & MODAL HANDLERS
   const { data: products = [], loading: productsLoading, refetch: refetchProducts } = useApi('/products');
   const { data: categories = [], loading: categoriesLoading, refetch: refetchCategories } = useApi('/categories');
@@ -113,11 +167,13 @@ export default function TenantDashboard() {
       name: p.name,
       category: p.category_name,
       variants: 1,
-      price: p.price,
+      price: p.price ?? p.category_base_price,
       stock: stockStatus,
       stockQuantity: p.stock,
       threshold: threshold,
       supplier: p.supplier_name || "---",
+      basePrice: p.category_base_price,
+      barcode: p.barcode,
     };
   });
 
@@ -244,7 +300,6 @@ export default function TenantDashboard() {
           body: JSON.stringify({
             name: newProductName,
             categoryId: newProductCategory,
-            priceOverride: 42,
             barcode: barcodeInput,
             sizes: selectedSizes,
             colors: selectedColors,
@@ -282,6 +337,57 @@ export default function TenantDashboard() {
       }
     } catch (err) {
       alert(`Failed to create product: ${err.message}`);
+    }
+  };
+
+  const handleChangeProductPrice = async (event) => {
+    event.preventDefault();
+    const price = Number(newProductPrice);
+    if (!selectedProductForPrice || !Number.isFinite(price) || price < 0) {
+      alert("Enter a valid non-negative price in XAF.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("digisol_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/products/${selectedProductForPrice.id}/price`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ price }),
+        }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Failed to update product price.");
+
+      alert(`${selectedProductForPrice.name} price updated to ${price.toLocaleString()} XAF.`);
+      setIsChangePriceOpen(false);
+      setSelectedProductForPrice(null);
+      setNewProductPrice("");
+      await refetchProducts();
+    } catch (error) {
+      alert(error.message || "Failed to update product price.");
+    }
+  };
+
+  const handleViewProductDetails = async (product) => {
+    setProductDetailsLoading(true);
+    setIsProductDetailsOpen(true);
+    try {
+      const token = localStorage.getItem("digisol_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/products/details/${product.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to load product details.");
+      setSelectedProductDetails(result);
+    } catch (error) {
+      setIsProductDetailsOpen(false);
+      alert(error.message || "Unable to load product details.");
+    } finally {
+      setProductDetailsLoading(false);
     }
   };
 
@@ -554,7 +660,7 @@ export default function TenantDashboard() {
                     <div className="absolute top-0 right-0 w-2 h-full bg-[#2D6A4F]" />
                     <span className="text-xs font-medium text-gray-500 block mb-1">Revenue (30d)</span>
                     <span className="text-3xl font-extrabold text-gray-900">{totalRevenue.toLocaleString()} XAF</span>
-                    <span className="text-[11px] text-[#52B788] font-semibold mt-2 block">All-time from sales</span>
+                    <span className="text-[11px] text-[#52B788] font-semibold mt-2 block">From sales in the last 30 days</span>
                   </div>
                 )}
 
@@ -584,13 +690,13 @@ export default function TenantDashboard() {
               </div>
 
               {/* REVENUE CHART CARD - OWNER ONLY */}
-              {userRole === "OWNER" && (revenueData?.revenue || []).length > 0 && (
+              {userRole === "OWNER" && (monthlyRevenueData?.revenue || []).length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-4">
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monthly Revenue</h3>
 
                   <div className="h-44 flex items-end justify-between gap-4 pt-6 px-4 bg-gray-50/60 rounded-xl border border-gray-200/80">
                     {(() => {
-                      const months = revenueData.revenue;
+                      const months = monthlyRevenueData.revenue;
                       const maxRevenue = Math.max(...months.map((m) => Number(m.revenue || 0)), 1);
                       return months.map((m, i) => {
                         const height = Math.max((Number(m.revenue) / maxRevenue) * 100, 5);
@@ -607,7 +713,7 @@ export default function TenantDashboard() {
                   </div>
 
                   <div className="flex justify-between text-xs text-gray-500 font-medium border-t border-gray-200 pt-3 px-2">
-                    {(revenueData?.revenue || []).map((m, i) => (
+                    {(monthlyRevenueData?.revenue || []).map((m, i) => (
                       <span key={i} className="flex-1 text-center">
                         {new Date(m.month).toLocaleDateString("en-US", { month: "short" })}
                       </span>
@@ -991,7 +1097,7 @@ export default function TenantDashboard() {
                           <td className="py-4 px-4">
                             <span className="font-semibold text-gray-900">{p.stockQuantity} / {p.threshold}</span>
                           </td>
-                          <td className="py-4 px-4 font-semibold text-gray-900">{Number(p.price || 0).toLocaleString()} XAF</td>
+                          <td className="py-4 px-4 font-semibold text-gray-900">{Number(p.price ?? p.basePrice ?? 0).toLocaleString()} XAF</td>
                           <td className="py-4 px-4">
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
@@ -1018,6 +1124,15 @@ export default function TenantDashboard() {
                                 <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
                                   <button
                                     onClick={() => {
+                                      handleViewProductDetails(p);
+                                      setOpenMenuProductId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-100 text-gray-700 transition"
+                                  >
+                                    <span>ℹ️</span> View details
+                                  </button>
+                                  <button
+                                    onClick={() => {
                                       setSelectedProductForStock(p);
                                       setStockQuantity("");
                                       setStockAction("add");
@@ -1028,6 +1143,19 @@ export default function TenantDashboard() {
                                   >
                                     <span>📦</span> Update Stock
                                   </button>
+                                  {userRole === "OWNER" && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedProductForPrice(p);
+                                        setNewProductPrice(String(Number(p.price || p.basePrice || 0)));
+                                        setIsChangePriceOpen(true);
+                                        setOpenMenuProductId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-amber-50 text-amber-600 transition border-t border-gray-200"
+                                    >
+                                      <span>💰</span> Change price
+                                    </button>
+                                  )}
                                   <button
                                     onClick={async () => {
                                       if (!window.confirm(`Delete ${p.name}? This cannot be undone.`)) return;
@@ -1044,7 +1172,7 @@ export default function TenantDashboard() {
                                         if (res.ok) {
                                           alert(`✅ ${p.name} deleted successfully`);
                                           setOpenMenuProductId(null);
-                                          refetchProducts();
+                                          await refetchProducts();
                                         } else {
                                           alert(`Failed: ${data.error}`);
                                         }
@@ -1597,6 +1725,73 @@ export default function TenantDashboard() {
         </div>
       )}
 
+      {/* SUPPORT TICKETS TAB (OWNER ONLY) */}
+      {activeTab === "tickets" && userRole === "OWNER" && (
+        <div className="max-w-5xl mx-auto space-y-6">
+          <div className="pt-0 -mt-160">
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Support tickets</h2>
+            <p className="text-xs text-gray-500 mt-1">Contact the ShopEase platform team about an issue with your store.</p>
+          </div>
+
+          <form onSubmit={handleCreateSupportTicket} className="w-full bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5">
+            {ticketMessage && (
+              <div className={`rounded-xl px-4 py-3 text-sm ${ticketMessage.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+                {ticketMessage.text}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Subject</label>
+              <input
+                value={ticketSubject}
+                onChange={(event) => setTicketSubject(event.target.value)}
+                placeholder="What do you need help with?"
+                maxLength={160}
+                className="w-full text-sm px-3.5 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 outline-none focus:border-[#2D6A4F]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Priority</label>
+              <div className="grid grid-cols-3 gap-2">
+                {["LOW", "MEDIUM", "HIGH"].map((priority) => (
+                  <button
+                    key={priority}
+                    type="button"
+                    onClick={() => setTicketPriority(priority)}
+                    className={`py-2.5 rounded-xl text-xs font-semibold border transition ${ticketPriority === priority ? "bg-[#2D6A4F] text-white border-[#2D6A4F]" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}
+                  >
+                    {priority}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Description</label>
+              <textarea
+                value={ticketDescription}
+                onChange={(event) => setTicketDescription(event.target.value)}
+                placeholder="Describe the issue and include any useful details."
+                rows={6}
+                maxLength={2000}
+                className="w-full text-sm px-3.5 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 outline-none focus:border-[#2D6A4F] resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={ticketSubmitting}
+                className="px-5 py-2.5 text-xs font-semibold text-white bg-[#D35327] hover:bg-[#B8421B] disabled:opacity-50 rounded-xl transition shadow-md"
+              >
+                {ticketSubmitting ? "Sending..." : "Send ticket"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* AUDIT LOGS TAB (OWNER ONLY) */}
       {activeTab === "audit-logs" && userRole === "OWNER" && (
         <div className="max-w-5xl mx-auto space-y-6">
@@ -1656,6 +1851,82 @@ export default function TenantDashboard() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHANGE PRODUCT PRICE */}
+      {isChangePriceOpen && selectedProductForPrice && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleChangeProductPrice} className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-6 md:p-8 space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Change unit price</h3>
+                <p className="text-xs text-gray-500 mt-1">{selectedProductForPrice.name}</p>
+              </div>
+              <button type="button" onClick={() => setIsChangePriceOpen(false)} className="text-gray-500 hover:text-gray-900 text-base font-bold">✕</button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">New price (XAF)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={newProductPrice}
+                onChange={(event) => setNewProductPrice(event.target.value)}
+                className="w-full text-sm px-3.5 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 outline-none focus:border-[#2D6A4F]"
+                autoFocus
+              />
+              <p className="text-[10px] text-gray-500 mt-2">The category base price is used until a custom price is saved.</p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setIsChangePriceOpen(false)} className="px-4 py-2.5 text-xs font-semibold text-gray-500">Cancel</button>
+              <button type="submit" className="px-5 py-2.5 text-xs font-semibold text-white bg-[#D35327] hover:bg-[#B8421B] rounded-xl">Save price</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL: PRODUCT DETAILS */}
+      {isProductDetailsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 md:p-8 space-y-5">
+            <div className="flex justify-between items-start sticky top-0 bg-white pb-2">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Product details</h3>
+                <p className="text-xs text-gray-500 mt-1">Database information for the selected product.</p>
+              </div>
+              <button onClick={() => setIsProductDetailsOpen(false)} className="text-gray-500 hover:text-gray-900 text-base font-bold">✕</button>
+            </div>
+
+            {productDetailsLoading || !selectedProductDetails ? (
+              <div className="py-8 text-center text-sm text-gray-500">Loading product details...</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Product</span><strong>{selectedProductDetails.product.name}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Category</span><strong>{selectedProductDetails.product.category_name || "—"}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Barcode</span><strong>{selectedProductDetails.product.barcode || "—"}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Supplier</span><strong>{selectedProductDetails.product.supplier_name || "—"}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Unit price</span><strong>{Number(selectedProductDetails.product.price ?? 0).toLocaleString()} XAF</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Category base price</span><strong>{Number(selectedProductDetails.product.category_base_price ?? 0).toLocaleString()} XAF</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Available stock</span><strong>{selectedProductDetails.product.stock}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Total variants</span><strong>{selectedProductDetails.variants.length}</strong></div>
+                  <div className="bg-gray-50 rounded-xl p-3"><span className="block text-[10px] text-gray-500">Created</span><strong>{new Date(selectedProductDetails.product.created_at).toLocaleString()}</strong></div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Variants</h4>
+                  <p className="text-sm text-gray-500">
+                    {selectedProductDetails.variants.length === 0
+                      ? "No variants configured."
+                      : `${selectedProductDetails.variants.length} variant${selectedProductDetails.variants.length === 1 ? "" : "s"} configured.`}
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1745,7 +2016,7 @@ export default function TenantDashboard() {
                     if (res.ok) {
                       alert(`✅ Stock updated!\n${selectedProductForStock.name} now has ${data.newQuantity} units`);
                       setIsUpdateStockOpen(false);
-                      refetchProducts();
+                      await refetchProducts();
                     } else {
                       alert(`Failed: ${data.error}`);
                     }

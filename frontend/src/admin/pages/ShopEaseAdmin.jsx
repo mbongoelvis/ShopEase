@@ -217,7 +217,7 @@ export default function ShopEaseAdmin() {
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
             >
-              Support
+                Tickets
             </button>
           </nav>
         </div>
@@ -483,7 +483,7 @@ export default function ShopEaseAdmin() {
               {/* Header with New Ticket Button */}
               <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Support Tickets</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Tickets</h2>
                   <p className="text-xs text-gray-500 mt-1">Review and resolve tenant issues</p>
                 </div>
                 <button

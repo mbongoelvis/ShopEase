@@ -5,19 +5,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { getUserInitials } from '../../utils/user';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SecurityGuardFlow'>;
 
 export const SecurityGuardScreen: React.FC<Props> = ({ navigation }) => {
+  const { user } = useAuth();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerUser}>Peter M. · Buea Town</Text>
+          <Text style={styles.headerUser}>{user?.name || 'User'} · {user?.storeName || 'Store'}</Text>
           <TouchableOpacity
             style={styles.avatar}>
-            <Text style={styles.avatarText}>PM</Text>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
           </TouchableOpacity>
         </View>
 

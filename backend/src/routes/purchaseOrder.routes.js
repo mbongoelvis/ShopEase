@@ -13,7 +13,7 @@ import { requireRole } from '../middleware/role.middleware.js';
 const router = express.Router();
 
 router.post('/', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR'), addPurchaseOrder);
-router.get('/', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR'), getPurchaseOrders);
+router.get('/', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR', 'STOCKER'), getPurchaseOrders);
 router.patch('/:id/send', authenticate, requireRole('OWNER', 'INVENTORY_MONITOR'), sendPurchaseOrder);
 
 // Stocker added here specifically — they're the one physically present

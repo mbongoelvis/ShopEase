@@ -3,11 +3,15 @@ import pool from '../config/db.js';
 
 
 export async function logDuplicateScan({ receiptId, scannedBy }) {
+  return logDiscrepancy({ receiptId, scannedBy, reason: 'DUPLICATE_SCAN' });
+}
+
+export async function logDiscrepancy({ receiptId, scannedBy, reason }) {
   const result = await pool.query(
     `INSERT INTO discrepancy_log (receipt_id, scanned_by, reason)
-     VALUES ($1, $2, 'DUPLICATE_SCAN')
+     VALUES ($1, $2, $3)
      RETURNING *`,
-    [receiptId, scannedBy]
+    [receiptId, scannedBy, reason || 'DISCREPANCY']
   );
   return result.rows[0];
 }

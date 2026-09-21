@@ -10,10 +10,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useTransactions } from '../../context/TransactionContext';
 import { useAuth } from '../../context/AuthContext';
+import { formatXaf } from '../../services/api';
+import { showSettingsComingSoonAlert } from '../../utils/comingSoon';
 
 export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { transactions, getStats } = useTransactions();
-  const { role } = useAuth();
+  const { user } = useAuth();
   const stats = getStats();
 
   const recentTransactions = transactions.slice(0, 5);
@@ -24,14 +26,14 @@ export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigati
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Store #01 — Cashier</Text>
+          <Text style={styles.headerSubtitle}>{user?.storeName || 'Store'} — Cashier</Text>
         </View>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         {/* Greeting */}
         <View style={styles.greetingCard}>
-          <Text style={styles.greetingText}>Welcome back, Jane!</Text>
+          <Text style={styles.greetingText}>Welcome back, {user?.name || 'User'}!</Text>
           <Text style={styles.greetingSubtext}>Here's your sales summary for today.</Text>
         </View>
 
@@ -40,7 +42,7 @@ export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigati
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Today's Sales</Text>
             <Text style={[styles.statValue, { color: COLORS.primaryDark }]}>
-              ${stats.totalSales.toFixed(2)}
+              {formatXaf(stats.totalSales)}
             </Text>
           </View>
           <View style={styles.statCard}>
@@ -52,7 +54,7 @@ export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigati
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Avg. Value</Text>
             <Text style={[styles.statValue, { color: COLORS.textPrimary }]}>
-              ${stats.avgValue.toFixed(2)}
+              {formatXaf(stats.avgValue)}
             </Text>
           </View>
         </View>
@@ -69,10 +71,10 @@ export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigati
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => navigation.navigate('TaxRateSettings')}
+            onPress={showSettingsComingSoonAlert}
           >
             <Text style={styles.actionIcon}>⚙️</Text>
-            <Text style={styles.actionLabel}>Tax Settings</Text>
+            <Text style={styles.actionLabel}>Settings</Text>
           </TouchableOpacity>
         </View>
 
@@ -86,8 +88,8 @@ export const CashierDashboardScreen: React.FC<{ navigation: any }> = ({ navigati
           recentTransactions.map((tx) => (
             <View key={tx.id} style={styles.txCard}>
               <View style={styles.txTop}>
-                <Text style={styles.txId}>{tx.id}</Text>
-                <Text style={styles.txAmount}>${tx.total.toFixed(2)}</Text>
+                <Text style={styles.txId}>{tx.id.slice(0,25)}...</Text>
+                <Text style={styles.txAmount}>{formatXaf(tx.total)}</Text>
               </View>
               <View style={styles.txBottom}>
                 <Text style={styles.txMeta}>
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   statLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-  statValue: { fontSize: 20, fontWeight: '700', marginTop: 6 },
+  statValue: { fontSize: 15, fontWeight: '700', marginTop: 6 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',

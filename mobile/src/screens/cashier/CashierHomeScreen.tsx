@@ -16,19 +16,19 @@ import { RootStackParamList, CartItem } from '../../types';
 import { COLORS } from '../../constants/theme';
 import { useSettings } from '../../context/SettingsContext';
 import { useTransactions } from '../../context/TransactionContext';
+import { useAuth } from '../../context/AuthContext';
+import { apiRequest, formatXaf } from '../../services/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CashierHome'>;
 
 export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const { taxRate } = useSettings();
   const { pendingScannedItem, clearPendingScannedItem } = useTransactions();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Active Cart State
-  const [cart, setCart] = useState<CartItem[]>([
-    { id: '1', name: 'Classic T-Shirt - Red/M', price: 14.99, quantity: 2, sku: 'TS-001' },
-    { id: '2', name: 'Baseball Cap - Black', price: 15.00, quantity: 1, sku: 'CP-002' }
-  ]);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   // Customer Info State
   const [customerInput, setCustomerInput] = useState('');
@@ -98,36 +98,28 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   // Add Manual Item by SKU
-  const handleAddManualSku = () => {
+  const handleAddManualSku = async () => {
     const raw = skuInput.trim().toLowerCase();
     if (!raw) return;
 
-    let newItem: CartItem;
-    if (raw.includes('shirt') || raw === '1') {
-      newItem = { id: '1', name: 'Classic T-Shirt - Red/M', price: 14.99, quantity: 1, sku: 'TS-001' };
-    } else if (raw.includes('cap') || raw === '2') {
-      newItem = { id: '2', name: 'Baseball Cap - Black', price: 15.00, quantity: 1, sku: 'CP-002' };
-    } else if (raw.includes('dress') || raw === '3') {
-      newItem = { id: '3', name: 'Ankara Wrap Dress (M)', price: 42.00, quantity: 1, sku: 'WD-003' };
-    } else {
-      newItem = {
-        id: Date.now().toString(),
-        name: `Item SKU: ${skuInput.toUpperCase()}`,
-        price: 25.00,
+    try {
+      const response = await apiRequest<{ product: { product_id: string; name: string; price: number; barcode: string } }>(`/products/${encodeURIComponent(skuInput.trim())}`);
+      const newItem: CartItem = {
+        id: String(response.product.product_id),
+        name: response.product.name,
+        price: Number(response.product.price),
         quantity: 1,
-        sku: skuInput.toUpperCase()
+        sku: response.product.barcode,
       };
-    }
 
-    setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.sku === newItem.sku);
-      if (existing) {
-        return prevCart.map((item) =>
-          item.sku === newItem.sku ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prevCart, newItem];
-    });
+      setCart((prevCart) => {
+        const existing = prevCart.find((item) => item.id === newItem.id);
+        if (existing) return prevCart.map((item) => item.id === newItem.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return [...prevCart, newItem];
+      });
+    } catch (error) {
+      Alert.alert('Product not found', error instanceof Error ? error.message : 'Unable to fetch this product.');
+    }
 
     setSkuInput('');
   };
@@ -203,8 +195,8 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* A. Header Bar */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Store #01</Text>
-          <Text style={styles.headerSubtitle}>Cashier: Jane Doe</Text>
+          <Text style={styles.headerTitle}>{user?.storeName || 'Store'}</Text>
+          <Text style={styles.headerSubtitle}>Cashier: {user?.name || 'User'}</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => setPrinterOnline(!printerOnline)}>
@@ -256,7 +248,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={styles.customerRow}>
                   <TextInput
                     style={styles.customerInput}
-                    placeholder="e.g. John Smith - +12345"
+                    placeholder="e.g. Thomas - 675342081"
                     placeholderTextColor={COLORS.textMuted}
                     value={customerInput}
                     onChangeText={setCustomerInput}
@@ -302,7 +294,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
               {/* Right: Total Price & Delete Fallback */}
               <View style={styles.cartItemRight}>
-                <Text style={styles.cartItemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                <Text style={styles.cartItemPrice}>{formatXaf(item.price * item.quantity)}</Text>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteItem(item.id)}>
                   <Text style={styles.deleteBtnIcon}>🗑️</Text>
                 </TouchableOpacity>
@@ -343,7 +335,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                         onPress={() => setDiscountType('Fixed Amount')}
                       >
                         <Text style={[styles.discountTypeText, discountType === 'Fixed Amount' && styles.discountTypeTextActive]}>
-                          Fixed $
+                          Fixed XAF
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -372,7 +364,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
                     {appliedDiscount > 0 && (
                       <Text style={styles.appliedDiscountTag}>
-                        ✓ Applied: {discountType === 'Percentage' ? `${appliedDiscount}% Off` : `$${appliedDiscount} Off`}
+                        ✓ Applied: {discountType === 'Percentage' ? `${appliedDiscount}% Off` : `${formatXaf(appliedDiscount)} Off`}
                       </Text>
                     )}
                   </View>
@@ -388,17 +380,17 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.footerTopRow}>
           <View>
             <Text style={styles.footerLabel}>Subtotal</Text>
-            <Text style={styles.footerValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.footerValue}>{formatXaf(subtotal)}</Text>
           </View>
           {discountAmount > 0 && (
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.footerLabel}>Discount</Text>
-              <Text style={[styles.footerValue, { color: COLORS.errorRed }]}>-${discountAmount.toFixed(2)}</Text>
+              <Text style={[styles.footerValue, { color: COLORS.errorRed }]}>-{formatXaf(discountAmount)}</Text>
             </View>
           )}
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.footerLabel}>Tax (VAT {(taxRate * 100).toFixed(1)}%)</Text>
-            <Text style={styles.footerValue}>${tax.toFixed(2)}</Text>
+            <Text style={styles.footerValue}>{formatXaf(tax)}</Text>
           </View>
         </View>
 
@@ -407,7 +399,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.footerBottomRow}>
           <View>
             <Text style={styles.totalLabel}>TOTAL DUE</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatXaf(total)}</Text>
           </View>
           <TouchableOpacity
             style={[styles.checkoutBtn, cart.length === 0 && styles.checkoutBtnDisabled]}

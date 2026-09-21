@@ -6,7 +6,7 @@ import { GuardDashboardScreen } from '../screens/guard/GuardDashboardScreen';
 import { SecurityGuardScreen } from '../screens/guard/SecurityScanScreen';
 import { GuardProfileScreen } from '../screens/guard/GuardProfileScreen';
 
-const Tab = createBottomTabNavigator();
+const Tab: any = createBottomTabNavigator();
 
 export const GuardTabNavigator = () => {
   return (
@@ -24,7 +24,7 @@ export const GuardTabNavigator = () => {
         name="Dashboard"
         component={GuardDashboardScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>📊</Text>
           ),
         }}
@@ -34,7 +34,7 @@ export const GuardTabNavigator = () => {
         component={SecurityGuardScreen}
         options={{
           tabBarLabel: 'Verify',
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>🔍</Text>
           ),
         }}
@@ -43,7 +43,7 @@ export const GuardTabNavigator = () => {
         name="Profile"
         component={GuardProfileScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>👤</Text>
           ),
         }}

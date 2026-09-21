@@ -39,3 +39,32 @@ export async function listItemsForTransaction(transactionId) {
   );
   return result.rows;
 }
+
+export async function listSalesForStore({ storeId, cashierId = null, from = null }) {
+  const params = [storeId];
+  let where = 'st.store_id = $1';
+
+  if (cashierId) {
+    params.push(cashierId);
+    where += ` AND st.cashier_id = $${params.length}`;
+  }
+  if (from) {
+    params.push(from);
+    where += ` AND st.timestamp >= $${params.length}`;
+  }
+
+  const result = await pool.query(
+    `SELECT
+       st.*,
+       r.qr_code,
+       r.status AS receipt_status,
+       r.collected_at
+     FROM sale_transaction st
+     LEFT JOIN receipt r ON r.transaction_id = st.sale_id
+     WHERE ${where}
+     ORDER BY st.timestamp DESC
+     LIMIT 200`,
+    params
+  );
+  return result.rows;
+}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth, UserRole } from '../../context/AuthContext';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
 import { COLORS } from '../../constants/theme';
@@ -13,13 +13,23 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   // Toggle this to false after testing to prevent auto-show
-  const [showChangePassword, setShowChangePassword] = useState(true);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('cashier');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleLogin = () => {
-    // Triggers the state change in AuthContext to dynamically switch stacks
-    login(selectedRole);
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Login failed', 'Enter your email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await login(email, password);
+    } catch (error) {
+      Alert.alert('Login failed', error instanceof Error ? error.message : 'Unable to sign in.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -30,39 +40,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       <Text style={styles.headerTitle}>Log in</Text>
       <Text style={styles.subTitle}>Sign in to your ShopEase account</Text>
-
-      {/* Role Selector UI */}
-      <View style={styles.roleContainer}>
-        <Text style={styles.label}>Select Shift Role</Text>
-        <View style={styles.roleGrid}>
-          <TouchableOpacity
-            style={[styles.roleCard, selectedRole === 'cashier' && styles.roleCardActive]}
-            onPress={() => setSelectedRole('cashier')}
-          >
-            <Text style={[styles.roleText, selectedRole === 'cashier' && styles.roleTextActive]}>
-              Cashier
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.roleCard, selectedRole === 'stocker' && styles.roleCardActive]}
-            onPress={() => setSelectedRole('stocker')}
-          >
-            <Text style={[styles.roleText, selectedRole === 'stocker' && styles.roleTextActive]}>
-              Stocker
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.roleCard, selectedRole === 'guard' && styles.roleCardActive]}
-            onPress={() => setSelectedRole('guard')}
-          >
-            <Text style={[styles.roleText, selectedRole === 'guard' && styles.roleTextActive]}>
-              Guard
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Email</Text>
@@ -97,17 +74,14 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* Fixed: Calls handleLogin instead of direct screen navigation */}
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>
-          Log in as {selectedRole ? selectedRole.toUpperCase() : ''}
-        </Text>
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>Log in</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.forgotPass}>
         <Text style={styles.forgotText}>Forgot password?</Text>
       </TouchableOpacity>
 
-      {/* Auto-show Change Password Modal for first-login testing. Toggle showChangePassword state to false to disable. */}
       <ChangePasswordModal
         visible={showChangePassword}
         onClose={() => setShowChangePassword(false)}

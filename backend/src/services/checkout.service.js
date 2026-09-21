@@ -15,7 +15,16 @@
 import pool from '../config/db.js';
 import { signReceipt } from '../utils/hmac.util.js';
 
-export async function processCheckout({ cashierId, storeId, items }) {
+export async function processCheckout({
+  cashierId,
+  storeId,
+  items,
+  paymentMethod = null,
+  customerName = null,
+  customerPhone = null,
+  discount = 0,
+  tax = 0,
+}) {
   // items looks like: [{ productId, qty }, { productId, qty }, ...]
 
   const client = await pool.connect(); // a single dedicated connection for this whole transaction
@@ -62,10 +71,11 @@ export async function processCheckout({ cashierId, storeId, items }) {
     // Step 2: now that we know every item had enough stock, create the
     // actual transaction and its line items.
     const saleResult = await client.query(
-      `INSERT INTO sale_transaction (cashier_id, store_id, total)
-       VALUES ($1, $2, $3)
+      `INSERT INTO sale_transaction
+         (cashier_id, store_id, total, payment_method, customer_name, customer_phone, discount, tax)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [cashierId, storeId, total]
+      [cashierId, storeId, total, paymentMethod, customerName, customerPhone, discount, tax]
     );
     const sale = saleResult.rows[0];
 

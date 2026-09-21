@@ -8,7 +8,7 @@ export type RootStackParamList = {
   StockerDashboard: { scannedBarcode?: string } | undefined;
   TaxRateSettings: undefined;
   ScanItem: { scanContext?: 'cashier' | 'guard' | 'stocker' } | undefined;
-  SecurityScanOutput: { status: 'valid' | 'invalid'; items: CartItem[]; transactionId?: string } | undefined;
+  SecurityScanOutput: { status: 'valid' | 'invalid'; items: CartItem[]; transactionId?: string; qrCode?: string } | undefined;
   SecurityGuardFlow: undefined;
   CartReview: { cartItems: CartItem[]; customerName?: string; customerPhone?: string; discount?: number; discountType?: 'Percentage' | 'Fixed Amount' | 'Promo Code' } | undefined;
   Payment: { cartItems: CartItem[]; customerName?: string; customerPhone?: string; discount?: number; discountType?: 'Percentage' | 'Fixed Amount' | 'Promo Code'; totalAmount: number } | undefined;
@@ -28,6 +28,7 @@ export type ReceiptStatus = 'Pending Exit' | 'Collected' | 'Discrepancy — Held
 
 export type Transaction = {
   id: string;
+  qrCode?: string;
   dateTime: string;
   paymentMethod: 'Cash' | 'Credit/Debit Card' | 'Mobile Payment' | 'Split Payment';
   items: CartItem[];
@@ -39,4 +40,4 @@ export type Transaction = {
   status: ReceiptStatus;
   customerName?: string;
   customerPhone?: string;
-};
+};

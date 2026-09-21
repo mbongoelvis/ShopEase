@@ -8,34 +8,46 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { apiRequest } from '../../services/api';
+import { showSettingsComingSoonAlert } from '../../utils/comingSoon';
 
 export const GuardDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const stats = {
-    scannedToday: 18,
-    flagged: 2,
-    cleared: 16,
-  };
+  const { user } = useAuth();
+  const [stats, setStats] = React.useState({ scannedToday: 0, flagged: 0, cleared: 0 });
+  const [recentScans, setRecentScans] = React.useState<any[]>([]);
 
-  const recentScans = [
-    { id: 'TXN-0041', time: '2:35 PM', items: 3, status: 'Collected' as const },
-    { id: 'TXN-0040', time: '2:12 PM', items: 5, status: 'Collected' as const },
-    { id: 'TXN-0039', time: '1:58 PM', items: 2, status: 'Discrepancy — Held' as const },
-    { id: 'TXN-0038', time: '1:30 PM', items: 1, status: 'Collected' as const },
-    { id: 'TXN-0037', time: '12:45 PM', items: 4, status: 'Pending Exit' as const },
-  ];
+  React.useEffect(() => {
+    apiRequest<{ stats: { scannedToday: number; flagged: number; cleared: number }; history: any[] }>('/exit/history')
+      .then((response) => {
+        setStats(response.stats);
+        setRecentScans(response.history.map((scan) => ({
+          id: String(scan.sale_id),
+          dateTime: new Date(scan.collected_at || scan.timestamp).toLocaleString([], {
+            month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+          }),
+          items: Number(scan.item_count || 0),
+          status: scan.receipt_status === 'COLLECTED' ? 'Collected' : 'Pending Exit',
+        })));
+      })
+      .catch(() => {
+        setStats({ scannedToday: 0, flagged: 0, cleared: 0 });
+        setRecentScans([]);
+      });
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Buea Town — Security</Text>
+          <Text style={styles.headerSubtitle}>{user?.storeName || 'Store'} — Security</Text>
         </View>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={styles.greetingCard}>
-          <Text style={styles.greetingText}>Welcome back, Peter!</Text>
+          <Text style={styles.greetingText}>Welcome back, {user?.name || 'User'}!</Text>
           <Text style={styles.greetingSubtext}>Here's your exit verification summary.</Text>
         </View>
 
@@ -71,7 +83,7 @@ export const GuardDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => navigation.navigate('TaxRateSettings')}
+            onPress={showSettingsComingSoonAlert}
           >
             <Text style={styles.actionIcon}>⚙️</Text>
             <Text style={styles.actionLabel}>Settings</Text>
@@ -82,7 +94,7 @@ export const GuardDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         {recentScans.map((scan) => (
           <View key={scan.id} style={styles.scanCard}>
             <View style={styles.scanTop}>
-              <Text style={styles.scanId}>{scan.id}</Text>
+              <Text style={styles.scanId}>{scan.id.slice(0,25)}.slice</Text>
               <Text style={[
                 styles.scanStatus,
                 scan.status === 'Collected' && { color: COLORS.successGreen },
@@ -94,7 +106,7 @@ export const GuardDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             </View>
             <View style={styles.scanBottom}>
               <Text style={styles.scanMeta}>{scan.items} item{scan.items !== 1 ? 's' : ''}</Text>
-              <Text style={styles.scanTime}>{scan.time}</Text>
+              <Text style={styles.scanTime}>{scan.dateTime}</Text>
             </View>
           </View>
         ))}

@@ -4,8 +4,11 @@ import { createTicket, listAllTickets, updateTicketStatus } from '../models/supp
 // POST /support-tickets tenant-side, any logged-in tenant user can raise one.
 export async function raiseTicket(req, res) {
   const { subject, description, priority } = req.body;
-  if (!subject) {
-    return res.status(400).json({ error: 'subject is required' });
+  if (!subject || !description) {
+    return res.status(400).json({ error: 'subject and description are required' });
+  }
+  if (priority && !['LOW', 'MEDIUM', 'HIGH'].includes(priority)) {
+    return res.status(400).json({ error: 'priority must be LOW, MEDIUM, or HIGH' });
   }
   const ticket = await createTicket({
     storeId: req.user.storeId,

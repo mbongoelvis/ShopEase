@@ -22,6 +22,22 @@ export async function getMonthlyRevenue(storeId, months = 6) {
   return result.rows;
 }
 
+export async function getRevenueLastDays(storeId, days = 30) {
+  const result = await pool.query(
+    `SELECT
+       date_trunc('day', timestamp) AS day,
+       SUM(total) AS revenue,
+       COUNT(*) AS transaction_count
+     FROM sale_transaction
+     WHERE store_id = $1
+       AND timestamp >= now() - ($2 || ' days')::interval
+     GROUP BY date_trunc('day', timestamp)
+     ORDER BY day ASC`,
+    [storeId, days]
+  );
+  return result.rows;
+}
+
 // Inventory turnover: how many units of each product sold, vs. how much is currently sitting in stock. A high "units sold" with LOW
 // remaining quantity signals a fast-moving item worth reordering soon — this is what feeds the "predictive low-stock" feature.
 export async function getInventoryTurnover(storeId) {

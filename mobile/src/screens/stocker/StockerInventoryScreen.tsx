@@ -5,38 +5,87 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { apiRequest } from '../../services/api';
+import { showSettingsComingSoonAlert } from '../../utils/comingSoon';
 
 export const StockerInventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const stats = {
-    totalProducts: 48,
-    lowStock: 5,
-    categories: 12,
-    addedToday: 3,
+  const { user } = useAuth();
+  const [allProducts, setAllProducts] = React.useState<any[]>([]);
+  const [recentProducts, setRecentProducts] = React.useState<any[]>([]);
+  const [stockInputs, setStockInputs] = React.useState<Record<string, string>>({});
+  const [updatingProductId, setUpdatingProductId] = React.useState<string | null>(null);
+
+  const loadProducts = async () => {
+    try {
+      const products = await apiRequest<any[]>('/products');
+      setAllProducts(products);
+      setRecentProducts(products.slice(0, 20).map((product) => ({
+        id: String(product.product_id),
+        name: product.name,
+        sku: product.barcode,
+        stock: Number(product.stock || 0),
+        category: product.category_name || 'Uncategorized',
+        createdAt: product.created_at,
+      })));
+    } catch {
+      setAllProducts([]);
+      setRecentProducts([]);
+    }
   };
 
-  const recentProducts = [
-    { id: '1', name: 'Summer Dress - Floral/M', sku: 'SD-001', stock: 24, category: 'Dresses' },
-    { id: '2', name: 'Leather Belt - Brown', sku: 'LB-002', stock: 8, category: 'Accessories' },
-    { id: '3', name: 'Running Shoes - White/42', sku: 'RS-003', stock: 2, category: 'Shoes' },
-    { id: '4', name: 'Silk Scarf - Navy', sku: 'SS-004', stock: 15, category: 'Accessories' },
-    { id: '5', name: 'Ankara Wrap Dress - L', sku: 'AW-005', stock: 0, category: 'Dresses' },
-  ];
+  React.useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const addStock = async (product: { id: string; name: string }) => {
+    const quantity = Number(stockInputs[product.id]);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      Alert.alert('Invalid quantity', 'Enter a whole number greater than zero.');
+      return;
+    }
+
+    setUpdatingProductId(product.id);
+    try {
+      await apiRequest(`/products/${product.id}/inventory`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity, action: 'add' }),
+      });
+      setStockInputs((current) => ({ ...current, [product.id]: '' }));
+      await loadProducts();
+      Alert.alert('Stock updated', `${quantity} unit(s) added to ${product.name}.`);
+    } catch (error) {
+      Alert.alert('Stock update failed', error instanceof Error ? error.message : 'Unable to update stock.');
+    } finally {
+      setUpdatingProductId(null);
+    }
+  };
+
+  const today = new Date().toDateString();
+  const stats = {
+    totalProducts: allProducts.length,
+    lowStock: allProducts.filter((product) => Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5).length,
+    categories: new Set(allProducts.map((product) => product.category_name || 'Uncategorized')).size,
+    addedToday: allProducts.filter((product) => product.created_at && new Date(product.created_at).toDateString() === today).length,
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Inventory</Text>
-          <Text style={styles.headerSubtitle}>Buea Town — Stocker</Text>
+          <Text style={styles.headerSubtitle}>{user?.storeName || 'Store'} — Stocker</Text>
         </View>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={styles.greetingCard}>
-          <Text style={styles.greetingText}>Welcome back, Sophia!</Text>
+          <Text style={styles.greetingText}>Welcome back, {user?.name || 'User'}!</Text>
           <Text style={styles.greetingSubtext}>Here's your inventory overview.</Text>
         </View>
 
@@ -65,7 +114,7 @@ export const StockerInventoryScreen: React.FC<{ navigation: any }> = ({ navigati
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => navigation.navigate('TaxRateSettings')}
+            onPress={showSettingsComingSoonAlert}
           >
             <Text style={styles.actionIcon}>⚙️</Text>
             <Text style={styles.actionLabel}>Settings</Text>
@@ -96,6 +145,22 @@ export const StockerInventoryScreen: React.FC<{ navigation: any }> = ({ navigati
             <View style={styles.productBottom}>
               <Text style={styles.productMeta}>SKU: {product.sku}</Text>
               <Text style={styles.productCategory}>{product.category}</Text>
+            </View>
+            <View style={styles.stockUpdateRow}>
+              <TextInput
+                value={stockInputs[product.id] || ''}
+                onChangeText={(value) => setStockInputs((current) => ({ ...current, [product.id]: value }))}
+                placeholder="Qty to add"
+                keyboardType="number-pad"
+                style={styles.stockInput}
+              />
+              <TouchableOpacity
+                style={styles.addStockButton}
+                onPress={() => addStock(product)}
+                disabled={updatingProductId === product.id}
+              >
+                <Text style={styles.addStockButtonText}>{updatingProductId === product.id ? 'Adding...' : 'Add stock'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ))}
@@ -190,4 +255,8 @@ const styles = StyleSheet.create({
   },
   productMeta: { fontSize: 12, color: COLORS.textMuted },
   productCategory: { fontSize: 11, fontWeight: '600', color: COLORS.primaryDark },
+  stockUpdateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  stockInput: { flex: 1, backgroundColor: '#F6F7F5', borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, color: COLORS.textPrimary, fontSize: 13 },
+  addStockButton: { backgroundColor: COLORS.primaryDark, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  addStockButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 });
