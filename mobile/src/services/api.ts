@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const configuredBaseUrl = process.env.EXPO_PUBLIC_API_URL;
-const defaultBaseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+const defaultBaseUrl = Platform.OS === 'android' ? 'http://192.168.1.182:5000' : 'http://localhost:5000';
 export const API_BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/$/, '');
 
 let authToken: string | null = null;

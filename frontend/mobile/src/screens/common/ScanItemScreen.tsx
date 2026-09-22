@@ -125,7 +125,7 @@ export const ScanItemScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     if (route.params?.scanContext === 'stocker') {
-      navigation.navigate('StockerDashboard', { scannedBarcode: data });
+      navigation.navigate('StockerDashboardScreen', { scannedBarcode: data });
       return;
     }
 

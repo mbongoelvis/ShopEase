@@ -14,9 +14,10 @@ export const CartReviewScreen: React.FC<Props> = ({ navigation, route }) => {
   const { cartItems = [], customerName, customerPhone, discount = 0, discountType } = route.params ?? {};
 
   // Calculations
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * taxRate;
-  const total = Math.max(0, subtotal + tax - discount);
+ const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+const discountedSubtotal = Math.max(0, subtotal - discount);
+const tax = discountedSubtotal * taxRate;    
+const total = discountedSubtotal + tax;
 
   const handleEditCart = () => {
     navigation.goBack();

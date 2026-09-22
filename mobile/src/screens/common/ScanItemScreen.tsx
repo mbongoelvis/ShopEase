@@ -172,8 +172,13 @@ export const ScanItemScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     if (route.params?.scanContext === 'stocker') {
-      navigation.navigate('StockerDashboard', { scannedBarcode: data });
-      return;
+      // navigation.navigate('StockerDashboard', { scannedBarcode: data });
+      // return;
+
+      (navigation.navigate as any)('StockerHome', {
+  screen: 'AddProduct',
+  params: { scannedBarcode: data },
+});
     }
 
     // Cashier context: push item into shared context — NO navigation, scanner stays open.

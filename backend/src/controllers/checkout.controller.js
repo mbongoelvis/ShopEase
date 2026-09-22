@@ -1,10 +1,9 @@
-
 import { processCheckout } from '../services/checkout.service.js';
 import { listSalesForStore, listItemsForTransaction } from '../models/sale.model.js';
 
 // POST /checkout — Cashier-only (enforced by route middleware).
 export async function checkout(req, res) {
-  const { items, paymentMethod, customerName, customerPhone, discount, tax } = req.body;
+  const { items, paymentMethod, customerName, customerPhone, discount, taxRate } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'items must be a non-empty array' });
@@ -19,7 +18,7 @@ export async function checkout(req, res) {
       customerName: customerName || null,
       customerPhone: customerPhone || null,
       discount: Number(discount) || 0,
-      tax: Number(tax) || 0,
+      taxRate: Number(taxRate) || 0,
     });
     res.status(201).json(result);
   } catch (err) {
