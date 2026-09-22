@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
@@ -17,24 +18,26 @@ export const GuardDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   const [stats, setStats] = React.useState({ scannedToday: 0, flagged: 0, cleared: 0 });
   const [recentScans, setRecentScans] = React.useState<any[]>([]);
 
-  React.useEffect(() => {
-    apiRequest<{ stats: { scannedToday: number; flagged: number; cleared: number }; history: any[] }>('/exit/history')
-      .then((response) => {
-        setStats(response.stats);
-        setRecentScans(response.history.map((scan) => ({
-          id: String(scan.sale_id),
-          dateTime: new Date(scan.collected_at || scan.timestamp).toLocaleString([], {
-            month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-          }),
-          items: Number(scan.item_count || 0),
-          status: scan.receipt_status === 'COLLECTED' ? 'Collected' : 'Pending Exit',
-        })));
-      })
-      .catch(() => {
-        setStats({ scannedToday: 0, flagged: 0, cleared: 0 });
-        setRecentScans([]);
-      });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      apiRequest<{ stats: { scannedToday: number; flagged: number; cleared: number }; history: any[] }>('/exit/history')
+        .then((response) => {
+          setStats(response.stats);
+          setRecentScans(response.history.map((scan) => ({
+            id: String(scan.sale_id),
+            dateTime: new Date(scan.collected_at || scan.timestamp).toLocaleString([], {
+              month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+            }),
+            items: Number(scan.item_count || 0),
+            status: scan.receipt_status === 'COLLECTED' ? 'Collected' : 'Pending Exit',
+          })));
+        })
+        .catch(() => {
+          setStats({ scannedToday: 0, flagged: 0, cleared: 0 });
+          setRecentScans([]);
+        });
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>

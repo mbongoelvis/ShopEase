@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
@@ -20,11 +21,13 @@ export const GuardProfileScreen: React.FC<{ navigation: any }> = ({ navigation }
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [stats, setStats] = useState({ scannedToday: 0, flagged: 0 });
 
-  React.useEffect(() => {
-    apiRequest<{ stats: { scannedToday: number; flagged: number } }>('/exit/history')
-      .then((response) => setStats(response.stats))
-      .catch(() => setStats({ scannedToday: 0, flagged: 0 }));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      apiRequest<{ stats: { scannedToday: number; flagged: number } }>('/exit/history')
+        .then((response) => setStats(response.stats))
+        .catch(() => setStats({ scannedToday: 0, flagged: 0 }));
+    }, [])
+  );
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [

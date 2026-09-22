@@ -1,4 +1,3 @@
-
 // Checkout Write Operation - Tricky/Risky
 // it touches THREE tables that must all succeed together or not at all:
 //   1. sale_transaction (the sale record itself)
@@ -23,21 +22,16 @@ export async function processCheckout({
   customerName = null,
   customerPhone = null,
   discount = 0,
-  tax = 0,
+  taxRate = 0,
 }) {
-  // items looks like: [{ productId, qty }, { productId, qty }, ...]
-
-  const client = await pool.connect(); // a single dedicated connection for this whole transaction
+  const client = await pool.connect();
 
   try {
-    await client.query('BEGIN'); // everything from here until COMMIT is one unit
+    await client.query('BEGIN');
 
-    let total = 0;
+    let subtotal = 0;
     const lineItems = [];
 
-    // Step 1: for each item, look up its current price and attempt to
-    // decrement stock. If ANY item is out of stock, we abort everything —
-    // including items that succeeded moments earlier in this same loop.
     for (const { productId, qty } of items) {
       const productResult = await client.query(
         'SELECT price FROM product WHERE product_id = $1',
@@ -57,16 +51,20 @@ export async function processCheckout({
       );
 
       if (stockResult.rows.length === 0) {
-        // Not enough stock — throwing here triggers the catch block below,
-        // which rolls back EVERYTHING, including earlier items in this
-        // same checkout that already succeeded.
         throw new Error(`Insufficient stock for product ${productId}`);
       }
 
       const lineTotal = product.price * qty;
-      total += lineTotal;
+      subtotal += lineTotal;
       lineItems.push({ productId, qty, price: product.price });
     }
+
+    const discountedSubtotal = Math.max(0, subtotal - discount);
+    const tax = discountedSubtotal * taxRate;
+    const total = discountedSubtotal + tax;
+
+    // ...rest of the function (sale_transaction insert, sale_item inserts,
+    // receipt, commit/rollback) stays exactly the same as your last version
 
     // Step 2: now that we know every item had enough stock, create the
     // actual transaction and its line items.
@@ -93,7 +91,7 @@ export async function processCheckout({
     // as the stock decrements above.
     const signature = signReceipt(sale.sale_id);
     const qrCode = `${sale.sale_id}.${signature}`; // the actual string encoded into the printed QR
- 
+
     const receiptResult = await client.query(
       `INSERT INTO receipt (transaction_id, qr_code, status)
        VALUES ($1, $2, 'PENDING')
@@ -101,7 +99,6 @@ export async function processCheckout({
       [sale.sale_id, qrCode]
     );
     const receipt = receiptResult.rows[0];
-
 
     await client.query('COMMIT'); // everything above is now permanently saved, together
     return { sale, items: lineItems, total, receipt };

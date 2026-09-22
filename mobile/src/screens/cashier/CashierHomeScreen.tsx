@@ -162,7 +162,6 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Dynamic calculations
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * taxRate;
   
   // Calculate discount amount
   let discountAmount = 0;
@@ -177,7 +176,9 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }
 
-  const total = Math.max(0, subtotal + tax - discountAmount);
+ const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+const tax = discountedSubtotal * taxRate;   // ← tax now computed AFTER discount
+const total = discountedSubtotal + tax;
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -308,7 +309,7 @@ export const CashierHomeScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
           }
           ListFooterComponent={
-            <View style={{ marginBottom: 120 }}>
+            <View style={{ marginBottom: 200 }}>
               {/* E. Discount / Promo Section */}
               <View style={styles.card}>
                 <TouchableOpacity

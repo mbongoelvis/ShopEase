@@ -41,8 +41,8 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
   const [terminalStatus, setTerminalStatus] = useState<'idle' | 'waiting' | 'connected'>('idle');
 
   // Exact amount and math
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * taxRate;
+  // const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // const tax = subtotal * taxRate;
 
   // Tender handlers
   const handleQuickAdd = (amount: number) => {
@@ -92,7 +92,8 @@ export const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
           customerName,
           customerPhone,
           discount,
-          tax,
+          taxRate,
+          totalAmount,
         }),
       });
 
